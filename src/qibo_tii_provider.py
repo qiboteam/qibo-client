@@ -1,8 +1,9 @@
+import json
 import time
 from typing import Dict
 
 import numpy as np
-from qibo import Circuit
+import qibo
 import requests
 
 
@@ -12,7 +13,7 @@ QRCCLUSTER_PORT = "8010"
 BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 
 
-class QiboTiiProvider:
+class TiiQProvider:
     """Class to manage the interaction with the QRC cluster."""
 
     def __init__(self, token: str):
@@ -22,8 +23,27 @@ class QiboTiiProvider:
         """
         self.token = token
 
+        self.check_client_server_qibo_versions()
+
+    def check_client_server_qibo_versions(self):
+        """Check that client and server qibo package installed versions match.
+        
+        Raise assertion error if the two versions are not the same.
+        """
+        url = BASE_URL + "qibo_version/"
+        response = requests.get(url)
+        assert (
+            response.status_code == 200
+        ), f"Failed to send the request to the server, response {response.status_code}"
+        qibo_server_version = json.loads(response.content)["qibo_version"]
+        qibo_local_version = qibo.__version__
+
+        assert (
+            qibo_local_version == qibo_server_version
+        ), f"Local Qibo package version does not match the server one, please upgrade: {qibo_local_version} -> {qibo_server_version}"
+
     def run_circuit(
-        self, circuit: Circuit, nshots: int = 100, device: str = "tiiq"
+        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "tiiq"
     ) -> Dict:
         """Run circuit on the cluster.
 
@@ -63,13 +83,14 @@ class QiboTiiProvider:
 
             # Check the response
             if response.status_code == 200:
-                self.pid = response.content["pid"]
-                return response.content
+                response_content = json.loads(response.content)
+                self.pid = response_content["pid"]
+                return response_content["message"]
             else:
-                return {"error": "Failed to send the request to the server"}
+                return "Error. Failed to send the request to the server"
 
         except Exception as e:
-            return {"error": f"An error occurred: {str(e)}"}
+            return f"Error. An error occurred: {str(e)}"
 
     def get_result(self, pid: str) -> np.ndarray:
         """Send requests to server checking whether the job is completed."""
@@ -85,3 +106,7 @@ class QiboTiiProvider:
             print(response.content["message"])
             self.result_path = response.content["result_path"]
             break
+
+        # @ TODO: link di get results scarica il numpy e ricostruisce i risultati
+        # import qibo
+        # qibo.CircuitResult()
