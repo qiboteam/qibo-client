@@ -43,7 +43,7 @@ class TiiQProvider:
         ), f"Local Qibo package version does not match the server one, please upgrade: {qibo_local_version} -> {qibo_server_version}"
 
     def run_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "tiiq"
+        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
     ) -> Dict:
         """Run circuit on the cluster.
 
