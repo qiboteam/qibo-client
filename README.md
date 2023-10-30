@@ -15,7 +15,7 @@ source activate ./env/bin/activate
 The `TiiQ Provider` package can be installed through `pip`:
 
 ```bash
-pip install https://github.com/qiboteam/qibo-tii-provider.git
+pip install git+ssh://github.com/qiboteam/qibo-tii-provider.git
 ```
 
 ## Quickstart
