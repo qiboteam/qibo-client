@@ -34,7 +34,7 @@ registration process.
 
 ```python
 import qibo
-import 
+from tiiq_provider import TiiQProvider
 
 # create the circuit you want to run
 circuit = qibo.models.QFT(5)
