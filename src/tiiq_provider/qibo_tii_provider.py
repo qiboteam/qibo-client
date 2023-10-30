@@ -1,6 +1,10 @@
 import json
+from pathlib import Path
+import tarfile
+import tempfile
 import time
-from typing import Dict
+from typing import Dict, Iterable
+import os
 
 import numpy as np
 import qibo
@@ -11,6 +15,35 @@ QRCCLUSTER_IP = "login.qrccluster.com"
 QRCCLUSTER_PORT = "8010"
 
 BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
+
+RESULTS_BASE_FOLDER = Path("./results")
+RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
+
+
+def __write_stream_response_to_folder(stream: Iterable, results_folder: Path):
+    """Save the stream to a given folder.
+
+    Internally, save the stream to a temporary archive and extract its contents
+    to the target folder.
+
+    :param stream: the iterator containing the response content
+    :type stream: Iterable
+    :param results_folder: the local path to the results folder
+    :type results_folder: Path
+    """
+    # save archive to tempfile
+    with tempfile.NamedTemporaryFile(delete=False) as archive:
+        for chunk in stream:
+            if chunk:
+                archive.write(chunk)
+        archive_path = archive.name
+
+    # extract archive content to target directory
+    results_folder = Path(".")
+    with tarfile.open(archive_path, "r") as archive:
+        archive.extractall(results_folder)
+
+    os.remove(archive_path)
 
 
 class TiiQProvider:
@@ -27,7 +60,7 @@ class TiiQProvider:
 
     def check_client_server_qibo_versions(self):
         """Check that client and server qibo package installed versions match.
-        
+
         Raise assertion error if the two versions are not the same.
         """
         url = BASE_URL + "qibo_version/"
@@ -66,6 +99,15 @@ class TiiQProvider:
         :param device: the device to run the circuit on. Default device is `tiiq`
         :type device: str
         """
+        # post circuit to server
+        self.__post_circuit(circuit, nshots, device)
+
+        # retrieve results
+        self.__get_result()
+
+    def __post_circuit(
+        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
+    ):
         payload = {
             "token": self.token,
             "circuit": circuit.raw(),
@@ -74,6 +116,7 @@ class TiiQProvider:
         }
         url = BASE_URL + "run_circuit/"
 
+        # post circuit
         try:
             # Send an HTTP request to the server
             response = requests.post(url, json=payload)
@@ -92,21 +135,29 @@ class TiiQProvider:
         except Exception as e:
             return f"Error. An error occurred: {str(e)}"
 
-    def get_result(self, pid: str) -> np.ndarray:
+    def __get_result(self) -> np.ndarray:
         """Send requests to server checking whether the job is completed."""
-        url = BASE_URL + f"get_result/{pid}"
+        url = BASE_URL + f"get_result/{self.pid}"
         while True:
             print("Job not finished, waiting 60s more...")
             time.sleep(60)
             response = requests.get(url)
 
-            if response.content["message"] == "Job not finished yet":
-                continue
+            try:
+                if response.content["message"] == "Job not finished yet":
+                    continue
+            except AttributeError as e:
+                print("This exceptions should be correctly handled", e)
+                pass
 
-            print(response.content["message"])
-            self.result_path = response.content["result_path"]
+            # create the job results folder
+            self.result_folder = RESULTS_BASE_FOLDER / self.pid
+            self.result_folder.mkdir(exist_ok=True)
+
+            # Save the stream to disk
+            __write_stream_response_to_folder(
+                response.stream_content(), self.result_folder
+            )
+
+            print("Result successfully retrieved")
             break
-
-        # @ TODO: link di get results scarica il numpy e ricostruisce i risultati
-        # import qibo
-        # qibo.CircuitResult()
