@@ -68,7 +68,7 @@ class TiiQProvider:
         """
         payload = {
             "token": self.token,
-            "circuit": circuit.to_qasm(),
+            "circuit": circuit.raw(),
             "nshots": nshots,
             "device": device,
         }
