@@ -1,5 +1,4 @@
 import qibo
-import os
 from tiiq_provider import TiiQProvider
 
 # create the circuit you want to run
