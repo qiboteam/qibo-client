@@ -12,4 +12,4 @@ with open("token.txt", "r") as f:
 client = TiiQProvider(token)
 
 # run the circuit
-result = client.run_circuit(circuit, nshots=100, dev="qw5q_gold")
+result = client.run_circuit(circuit, nshots=100, device="qw5q_gold")
