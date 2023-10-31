@@ -46,7 +46,7 @@ def __write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     os.remove(archive_path)
 
 
-class TiiQProvider:
+class TiiProvider:
     """Class to manage the interaction with the QRC cluster."""
 
     def __init__(self, token: str):

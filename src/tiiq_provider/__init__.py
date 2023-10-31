@@ -1,1 +1,1 @@
-from tiiq_provider.qibo_tii_provider import TiiQProvider
+from tiiq_provider.qibo_tii_provider import TiiProvider
