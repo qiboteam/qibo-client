@@ -3,7 +3,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import time
-from typing import Dict, Iterable
+from typing import Iterable
 import os
 
 import numpy as np
@@ -11,7 +11,7 @@ import qibo
 import requests
 
 
-QRCCLUSTER_IP = "login.qrccluster.com"
+QRCCLUSTER_IP = "localhost"
 QRCCLUSTER_PORT = "8010"
 
 BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
@@ -19,8 +19,10 @@ BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 RESULTS_BASE_FOLDER = Path("./results")
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
+SECONDS_BETWEEN_CHECKS = 1
 
-def __write_stream_response_to_folder(stream: Iterable, results_folder: Path):
+
+def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     """Save the stream to a given folder.
 
     Internally, save the stream to a temporary archive and extract its contents
@@ -39,7 +41,6 @@ def __write_stream_response_to_folder(stream: Iterable, results_folder: Path):
         archive_path = archive.name
 
     # extract archive content to target directory
-    results_folder = Path(".")
     with tarfile.open(archive_path, "r") as archive:
         archive.extractall(results_folder)
 
@@ -113,7 +114,7 @@ class TiiProvider:
     ):
         payload = {
             "token": self.token,
-            "circuit": circuit.raw(),
+            "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
         }
@@ -143,30 +144,27 @@ class TiiProvider:
 
         This function populates the `TiiProvider.result_folder` and
         `TiiProvider.result_path` attributes.
-        
+
         :return: the numpy array with the results of the computation
         :rtype: np.ndarray
         """
         url = BASE_URL + f"get_result/{self.pid}"
         while True:
-            print("Job not finished, waiting 60s more...")
-            time.sleep(60)
+            print(f"Job not finished, waiting {SECONDS_BETWEEN_CHECKS}s more...")
+            time.sleep(SECONDS_BETWEEN_CHECKS)
             response = requests.get(url)
 
-            try:
-                if response.content["message"] == "Job not finished yet":
-                    continue
-            except AttributeError as e:
-                print("This exceptions should be correctly handled", e)
-                pass
+            if response.content == b"Job still in progress":
+                continue
+
 
             # create the job results folder
             self.result_folder = RESULTS_BASE_FOLDER / self.pid
             self.result_folder.mkdir(exist_ok=True)
 
             # Save the stream to disk
-            __write_stream_response_to_folder(
-                response.stream_content(), self.result_folder
+            _write_stream_response_to_folder(
+                response.iter_content(), self.result_folder
             )
 
             self.result_path = self.result_folder / "results.npy"
