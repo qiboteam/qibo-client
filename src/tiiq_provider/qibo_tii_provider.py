@@ -77,7 +77,7 @@ class TiiProvider:
 
     def run_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
-    ) -> Dict:
+    ) -> np.ndarray:
         """Run circuit on the cluster.
 
         List of available devices:
@@ -98,12 +98,15 @@ class TiiProvider:
         :type nshots: int
         :param device: the device to run the circuit on. Default device is `tiiq`
         :type device: str
+
+        :return: the numpy array with the results of the computation
+        :rtype: np.ndarray
         """
         # post circuit to server
         self.__post_circuit(circuit, nshots, device)
 
         # retrieve results
-        self.__get_result()
+        return self.__get_result()
 
     def __post_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
@@ -136,7 +139,14 @@ class TiiProvider:
             return f"Error. An error occurred: {str(e)}"
 
     def __get_result(self) -> np.ndarray:
-        """Send requests to server checking whether the job is completed."""
+        """Send requests to server checking whether the job is completed.
+
+        This function populates the `TiiProvider.result_folder` and
+        `TiiProvider.result_path` attributes.
+        
+        :return: the numpy array with the results of the computation
+        :rtype: np.ndarray
+        """
         url = BASE_URL + f"get_result/{self.pid}"
         while True:
             print("Job not finished, waiting 60s more...")
@@ -159,5 +169,5 @@ class TiiProvider:
                 response.stream_content(), self.result_folder
             )
 
-            print("Result successfully retrieved")
-            break
+            self.result_path = self.result_folder / "results.npy"
+            return qibo.result.load_result(self.result_path)
