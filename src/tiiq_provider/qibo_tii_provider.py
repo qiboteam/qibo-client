@@ -19,7 +19,7 @@ BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 RESULTS_BASE_FOLDER = Path("./results")
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
-SECONDS_BETWEEN_CHECKS = 1
+SECONDS_BETWEEN_CHECKS = 5
 
 
 def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
@@ -104,6 +104,7 @@ class TiiProvider:
         :rtype: np.ndarray
         """
         # post circuit to server
+        print("Post new circuit on the server")
         self.__post_circuit(circuit, nshots, device)
 
         # retrieve results
@@ -150,7 +151,7 @@ class TiiProvider:
         """
         url = BASE_URL + f"get_result/{self.pid}"
         while True:
-            print(f"Job not finished, waiting {SECONDS_BETWEEN_CHECKS}s more...")
+            print(f"Job not finished, waiting {SECONDS_BETWEEN_CHECKS}s more ...")
             time.sleep(SECONDS_BETWEEN_CHECKS)
             response = requests.get(url)
 
