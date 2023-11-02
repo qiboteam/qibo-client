@@ -11,7 +11,7 @@ import qibo
 import requests
 
 
-QRCCLUSTER_IP = "localhost"
+QRCCLUSTER_IP = "login.qrccluster.com"
 QRCCLUSTER_PORT = "8010"
 
 BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
