@@ -6,20 +6,21 @@ import time
 from typing import Iterable, Optional
 import os
 
+from dotenv import dotenv_values
 import numpy as np
 import qibo
 import requests
 
 
-QRCCLUSTER_IP = "login.qrccluster.com"
-QRCCLUSTER_PORT = "8010"
+env_path = Path(__file__).parent / ".env"
+config = dotenv_values(env_path)
 
-BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
+BASE_URL = f"http://{config['QRCCLUSTER_IP']}:{config['QRCCLUSTER_PORT']}/"
 
-RESULTS_BASE_FOLDER = Path("./results")
+RESULTS_BASE_FOLDER = Path(config["RESULTS_BASE_FOLDER"])
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
-SECONDS_BETWEEN_CHECKS = 5
+SECONDS_BETWEEN_CHECKS = config["SECONDS_BETWEEN_CHECKS"]
 
 
 def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
