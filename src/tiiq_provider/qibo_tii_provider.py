@@ -3,7 +3,7 @@ from pathlib import Path
 import tarfile
 import tempfile
 import time
-from typing import Iterable
+from typing import Iterable, Optional
 import os
 
 import numpy as np
@@ -78,7 +78,7 @@ class TiiProvider:
 
     def run_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
-    ) -> np.ndarray:
+    ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
 
         List of available devices:
@@ -100,7 +100,8 @@ class TiiProvider:
         :param device: the device to run the circuit on. Default device is `tiiq`
         :type device: str
 
-        :return: the numpy array with the results of the computation
+        :return: the numpy array with the results of the computation. None if
+        the job raised an error.
         :rtype: np.ndarray
         """
         # post circuit to server
@@ -108,7 +109,11 @@ class TiiProvider:
         self.__post_circuit(circuit, nshots, device)
 
         # retrieve results
-        return self.__get_result()
+        print(f"Job posted on server with pid {self.pid}")
+        print(f"Check results every {SECONDS_BETWEEN_CHECKS} seconds ...")
+        result =  self.__get_result()
+
+        return result
 
     def __post_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
@@ -140,24 +145,23 @@ class TiiProvider:
         except Exception as e:
             return f"Error. An error occurred: {str(e)}"
 
-    def __get_result(self) -> np.ndarray:
+    def __get_result(self) -> Optional[np.ndarray]:
         """Send requests to server checking whether the job is completed.
 
         This function populates the `TiiProvider.result_folder` and
         `TiiProvider.result_path` attributes.
 
-        :return: the numpy array with the results of the computation
-        :rtype: np.ndarray
+        :return: the numpy array with the results of the computation. None if
+        the job raised an error.
+        :rtype: Optional[np.ndarray]
         """
         url = BASE_URL + f"get_result/{self.pid}"
         while True:
-            print(f"Job not finished, waiting {SECONDS_BETWEEN_CHECKS}s more ...")
             time.sleep(SECONDS_BETWEEN_CHECKS)
             response = requests.get(url)
 
             if response.content == b"Job still in progress":
                 continue
-
 
             # create the job results folder
             self.result_folder = RESULTS_BASE_FOLDER / self.pid
@@ -167,6 +171,10 @@ class TiiProvider:
             _write_stream_response_to_folder(
                 response.iter_content(), self.result_folder
             )
+
+            if response.headers["Job-Status"].lower() == "error":
+                print(f"Job exited with error, check logs in {self.result_folder.as_posix()} folder")
+                return None
 
             self.result_path = self.result_folder / "results.npy"
             return qibo.result.load_result(self.result_path)
