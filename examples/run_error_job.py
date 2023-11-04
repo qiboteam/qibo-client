@@ -1,8 +1,8 @@
 import qibo
-from tiiq_provider import TiiProvider
+from qibo_tii_provider import TiiProvider
 
 # create the circuit you want to run
-circuit = qibo.models.QFT(5)
+circuit = qibo.models.QFT(11)
 
 # read the token from file
 with open("token.txt", "r") as f:
@@ -12,4 +12,7 @@ with open("token.txt", "r") as f:
 client = TiiProvider(token)
 
 # run the circuit
-result = client.run_circuit(circuit, nshots=100, device="qw5q_gold")
+print(f"{'*'*20}\nPost first circuit")
+result = client.run_circuit(circuit, nshots=100, device="sim")
+
+print(result)
