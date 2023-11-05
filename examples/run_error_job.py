@@ -9,7 +9,7 @@ with open("token.txt", "r") as f:
     token = f.read()
 
 # authenticate to server through the client instance
-client = TiiProvider(token)
+client = TIIProvider(token)
 
 # run the circuit
 print(f"{'*'*20}\nPost first circuit")
