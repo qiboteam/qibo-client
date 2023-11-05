@@ -6,21 +6,22 @@ import time
 from typing import Iterable, Optional
 import os
 
-from dotenv import dotenv_values
 import numpy as np
 import qibo
 import requests
 
 
-env_path = Path(__file__).parent / ".env"
-config = dotenv_values(env_path)
+QRCCLUSTER_IP=os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
+QRCCLUSTER_PORT=os.environ.get("QRCCLUSTER_PORT", "8010")
+RESULTS_BASE_FOLDER=os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
+SECONDS_BETWEEN_CHECKS=os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
 
-BASE_URL = f"http://{config['QRCCLUSTER_IP']}:{config['QRCCLUSTER_PORT']}/"
+BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 
-RESULTS_BASE_FOLDER = Path(config["RESULTS_BASE_FOLDER"])
+RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
-SECONDS_BETWEEN_CHECKS = config["SECONDS_BETWEEN_CHECKS"]
+SECONDS_BETWEEN_CHECKS = SECONDS_BETWEEN_CHECKS
 
 
 def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
@@ -48,7 +49,7 @@ def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     os.remove(archive_path)
 
 
-class TiiProvider:
+class TIIProvider:
     """Class to manage the interaction with the QRC cluster."""
 
     def __init__(self, token: str):
@@ -78,7 +79,7 @@ class TiiProvider:
         ), f"Local Qibo package version does not match the server one, please upgrade: {qibo_local_version} -> {qibo_server_version}"
 
     def run_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
+        self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim"
     ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
 
@@ -86,19 +87,21 @@ class TiiProvider:
 
         - sim
         - iqm5q
-        - qw25q
-        - tii1qs
-        - tii_others
+        - spinq10q
         - tii1q_b1
-        - tii1q_b4
-        - tii1q_b11
-        - qw5q_gold
+        - qw25q_gold
+        - tiidc
+        - tii2q
+        - tii2q1
+        - tii2q2
+        - tii2q3
+        - tii2q4
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
         :param nshots:
         :type nshots: int
-        :param device: the device to run the circuit on. Default device is `tiiq`
+        :param device: the device to run the circuit on. Default device is `sim`
         :type device: str
 
         :return: the numpy array with the results of the computation. None if
@@ -149,8 +152,8 @@ class TiiProvider:
     def __get_result(self) -> Optional[np.ndarray]:
         """Send requests to server checking whether the job is completed.
 
-        This function populates the `TiiProvider.result_folder` and
-        `TiiProvider.result_path` attributes.
+        This function populates the `TIIProvider.result_folder` and
+        `TIIProvider.result_path` attributes.
 
         :return: the numpy array with the results of the computation. None if
         the job raised an error.
