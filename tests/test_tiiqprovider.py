@@ -99,3 +99,23 @@ def test_check_client_server_qibo_versions_with_version_mismatch(mock_request):
         )
 
     mock_request.get.assert_called_once_with(LOCAL_URL + "qibo_version/")
+
+
+class MockedCircuit:
+    def __init__(self):
+        self.raw = "raw circuit representation"
+
+
+def test___post_circuit_with_invalid_token(mock_request: Mock):
+    mock_get_response = MockedResponse(
+        status_code=200, json={"qibo_version": FAKE_QIBO_VERSION}
+    )
+    mock_request.get.return_value = mock_get_response
+
+    # simulate 404 error due to invalid token
+    mock_post_response = MockedResponse(status_code=404)
+    mock_request.post.return_value = mock_post_response
+
+    client = _get_tii_client()
+    with pytest.raises(HTTPError):
+        client._post_circuit(MockedCircuit())
