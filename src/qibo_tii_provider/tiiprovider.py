@@ -3,18 +3,20 @@ from pathlib import Path
 import tarfile
 import tempfile
 import time
-from typing import Iterable, Optional
+from typing import Dict, Iterable, List, Optional
 import os
 
 import numpy as np
 import qibo
 import requests
 
+from .config import MalformedResponseError
 
-QRCCLUSTER_IP=os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
-QRCCLUSTER_PORT=os.environ.get("QRCCLUSTER_PORT", "8010")
-RESULTS_BASE_FOLDER=os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
-SECONDS_BETWEEN_CHECKS=os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
+
+QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
+QRCCLUSTER_PORT = os.environ.get("QRCCLUSTER_PORT", "8010")
+RESULTS_BASE_FOLDER = os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
+SECONDS_BETWEEN_CHECKS = os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
 
 BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 
@@ -23,7 +25,19 @@ RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
 SECONDS_BETWEEN_CHECKS = SECONDS_BETWEEN_CHECKS
 
+# configure logger
+import logging
 
+logging.basicConfig(format="[%(asctime)s] %(levelname)s: %(message)s")
+logger = logging.getLogger(__name__)
+logging_level = logging.INFO
+logger.setLevel(logging_level)
+
+
+# TODO: check here that the stream of data
+# TODO: split this into two function and unittest the two functionalities:
+# - create an archive from a stream iterable
+# - extract everything into results_folder
 def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     """Save the stream to a given folder.
 
@@ -49,6 +63,23 @@ def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     os.remove(archive_path)
 
 
+def check_response_has_keys(response: requests.models.Response, keys: List[str]):
+    """Check that the response body contains certain keys.
+
+
+    :raises MalformedResponseError: if the server response does not contain all
+    the expected keys
+    """
+    response_keys = set(response.json().keys())
+    expected_keys = set(keys)
+    missing_keys = expected_keys.difference(response_keys)
+
+    if len(missing_keys):
+        raise MalformedResponseError(
+            f"The server response is missing the following keys: {' '.join(missing_keys)}"
+        )
+
+
 class TIIProvider:
     """Class to manage the interaction with the QRC cluster."""
 
@@ -68,10 +99,9 @@ class TIIProvider:
         """
         url = BASE_URL + "qibo_version/"
         response = requests.get(url)
-        assert (
-            response.status_code == 200
-        ), f"Failed to send the request to the server, response {response.status_code}"
-        qibo_server_version = json.loads(response.content)["qibo_version"]
+        response.raise_for_status()
+        check_response_has_keys(response, ["qibo_version"])
+        qibo_server_version = response.json()["qibo_version"]
         qibo_local_version = qibo.__version__
 
         assert (
@@ -109,47 +139,49 @@ class TIIProvider:
         :rtype: np.ndarray
         """
         # post circuit to server
-        print("Post new circuit on the server")
-        self.__post_circuit(circuit, nshots, device)
+        logger.info("Post new circuit on the server")
+        try:
+            self._post_circuit(circuit, nshots, device)
+        except:
+            logger.error()
+            return
 
         # retrieve results
-        print(f"Job posted on server with pid {self.pid}")
-        print(f"Check results every {SECONDS_BETWEEN_CHECKS} seconds ...")
-        result =  self.__get_result()
+        logger.info("Job posted on server with pid %s", self.pid)
+        logger.info("Check results every %d seconds ...", SECONDS_BETWEEN_CHECKS)
+        result = self._get_result()
 
         return result
 
-    def __post_circuit(
+    def _post_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
-    ):
+    ) -> int:
+        """
+
+        :return: the post request status code. If the post block raises an
+        exception, the exit code is set to -1.
+        :rtype: int
+        """
+        # HTTP request
+        url = BASE_URL + "run_circuit/"
         payload = {
             "token": self.token,
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
         }
-        url = BASE_URL + "run_circuit/"
+        response = requests.post(url, json=payload)
 
-        # post circuit
-        try:
-            # Send an HTTP request to the server
-            response = requests.post(url, json=payload)
+        # checks
+        response.raise_for_status()
+        check_response_has_keys(response, ["pid", "message"])
 
-            # the response should contain the PID to be checked (in the db, store
-            # an hashed version of the pid, not the actual value)
+        # save the response
+        response_content = response.json()
+        self.pid = response_content["pid"]
+        return response_content["message"]
 
-            # Check the response
-            if response.status_code == 200:
-                response_content = json.loads(response.content)
-                self.pid = response_content["pid"]
-                return response_content["message"]
-            else:
-                return "Error. Failed to send the request to the server"
-
-        except Exception as e:
-            return f"Error. An error occurred: {str(e)}"
-
-    def __get_result(self) -> Optional[np.ndarray]:
+    def _get_result(self) -> Optional[np.ndarray]:
         """Send requests to server checking whether the job is completed.
 
         This function populates the `TIIProvider.result_folder` and
@@ -177,7 +209,10 @@ class TIIProvider:
             )
 
             if response.headers["Job-Status"].lower() == "error":
-                print(f"Job exited with error, check logs in {self.result_folder.as_posix()} folder")
+                logger.info(
+                    "Job exited with error, check logs in %s folder",
+                    self.result_folder.as_posix(),
+                )
                 return None
 
             self.result_path = self.result_folder / "results.npy"
