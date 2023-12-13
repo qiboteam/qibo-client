@@ -10,7 +10,7 @@ import numpy as np
 import qibo
 import requests
 
-from .config import MalformedResponseError
+from .config import MalformedResponseError, JobPostServerError
 
 
 QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
@@ -23,8 +23,6 @@ BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
-SECONDS_BETWEEN_CHECKS = SECONDS_BETWEEN_CHECKS
-
 # configure logger
 import logging
 
@@ -32,6 +30,22 @@ logging.basicConfig(format="[%(asctime)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
 logging_level = logging.INFO
 logger.setLevel(logging_level)
+
+
+def wait_for_response_to_get_request(url: str) -> requests.models.Response:
+    """Wait until the server completes the computation and return the response.
+
+    :param url: the endpoint to make the request
+    :type url: str
+
+    :return: the response of the get request
+    :rtype: requests.models.Response
+    """
+    response = requests.get(url)
+    if response.content == b"Job still in progress":
+        time.sleep(SECONDS_BETWEEN_CHECKS)
+        wait_for_response_to_get_request(url)
+    return response
 
 
 # TODO: check here that the stream of data
@@ -140,10 +154,11 @@ class TIIProvider:
         """
         # post circuit to server
         logger.info("Post new circuit on the server")
+
         try:
             self._post_circuit(circuit, nshots, device)
-        except:
-            logger.error()
+        except JobPostServerError as err:
+            logger.error(err.message)
             return
 
         # retrieve results
@@ -155,13 +170,7 @@ class TIIProvider:
 
     def _post_circuit(
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
-    ) -> int:
-        """
-
-        :return: the post request status code. If the post block raises an
-        exception, the exit code is set to -1.
-        :rtype: int
-        """
+    ):
         # HTTP request
         url = BASE_URL + "run_circuit/"
         payload = {
@@ -179,7 +188,9 @@ class TIIProvider:
         # save the response
         response_content = response.json()
         self.pid = response_content["pid"]
-        return response_content["message"]
+
+        if self.pid is None:
+            raise JobPostServerError(response_content["message"])
 
     def _get_result(self) -> Optional[np.ndarray]:
         """Send requests to server checking whether the job is completed.
@@ -191,29 +202,22 @@ class TIIProvider:
         the job raised an error.
         :rtype: Optional[np.ndarray]
         """
-        url = BASE_URL + f"get_result/{self.pid}"
-        while True:
-            time.sleep(SECONDS_BETWEEN_CHECKS)
-            response = requests.get(url)
+        url = BASE_URL + f"get_result/{self.pid}/"
+        response = wait_for_response_to_get_request(url)
 
-            if response.content == b"Job still in progress":
-                continue
+        # create the job results folder
+        self.result_folder = RESULTS_BASE_FOLDER / self.pid
+        self.result_folder.mkdir(exist_ok=True)
 
-            # create the job results folder
-            self.result_folder = RESULTS_BASE_FOLDER / self.pid
-            self.result_folder.mkdir(exist_ok=True)
+        # Save the stream to disk
+        _write_stream_response_to_folder(response.iter_content(), self.result_folder)
 
-            # Save the stream to disk
-            _write_stream_response_to_folder(
-                response.iter_content(), self.result_folder
+        if response.headers["Job-Status"].lower() == "error":
+            logger.info(
+                "Job exited with error, check logs in %s folder",
+                self.result_folder.as_posix(),
             )
+            return None
 
-            if response.headers["Job-Status"].lower() == "error":
-                logger.info(
-                    "Job exited with error, check logs in %s folder",
-                    self.result_folder.as_posix(),
-                )
-                return None
-
-            self.result_path = self.result_folder / "results.npy"
-            return qibo.result.load_result(self.result_path)
+        self.result_path = self.result_folder / "results.npy"
+        return qibo.result.load_result(self.result_path)
