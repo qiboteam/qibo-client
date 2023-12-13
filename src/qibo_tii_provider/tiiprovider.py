@@ -1,9 +1,8 @@
-import json
 from pathlib import Path
 import tarfile
 import tempfile
 import time
-from typing import Dict, Iterable, List, Optional
+from typing import Iterable, List, Optional
 import os
 
 import numpy as np
@@ -41,18 +40,40 @@ def wait_for_response_to_get_request(url: str) -> requests.models.Response:
     :return: the response of the get request
     :rtype: requests.models.Response
     """
-    response = requests.get(url)
-    if response.content == b"Job still in progress":
-        time.sleep(SECONDS_BETWEEN_CHECKS)
-        wait_for_response_to_get_request(url)
-    return response
+    while True:
+        response = requests.get(url)
+        if response.content == b"Job still in progress":
+            time.sleep(SECONDS_BETWEEN_CHECKS)
+            continue
+        return response
 
 
-# TODO: check here that the stream of data
-# TODO: split this into two function and unittest the two functionalities:
-# - create an archive from a stream iterable
-# - extract everything into results_folder
-def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
+def _write_stream_to_tmp_file(stream: Iterable) -> Path:
+    """Write chunk of bytes to temporary file.
+
+    The tmp_path should be closed manually.
+
+    :param stream: the stream of bytes chunks to be saved on disk
+    :type stream: Iterable
+
+    :return: the name of the tempo
+
+    """
+
+    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
+        for chunk in stream:
+            if chunk:
+                tmp_file.write(chunk)
+        archive_path = tmp_file.name
+    return Path(archive_path)
+
+
+def _extract_archive_to_folder(source_archive: Path, destination_folder: Path):
+    with tarfile.open(source_archive, "r:gz") as archive:
+        archive.extractall(destination_folder)
+
+
+def _save_and_unpack_stream_response_to_folder(stream: Iterable, results_folder: Path):
     """Save the stream to a given folder.
 
     Internally, save the stream to a temporary archive and extract its contents
@@ -63,18 +84,12 @@ def _write_stream_response_to_folder(stream: Iterable, results_folder: Path):
     :param results_folder: the local path to the results folder
     :type results_folder: Path
     """
-    # save archive to tempfile
-    with tempfile.NamedTemporaryFile(delete=False) as archive:
-        for chunk in stream:
-            if chunk:
-                archive.write(chunk)
-        archive_path = archive.name
+    archive_path = _write_stream_to_tmp_file(stream)
 
-    # extract archive content to target directory
-    with tarfile.open(archive_path, "r") as archive:
-        archive.extractall(results_folder)
+    _extract_archive_to_folder(archive_path, results_folder)
 
-    os.remove(archive_path)
+    # clean up temporary file
+    archive_path.unlink()
 
 
 def check_response_has_keys(response: requests.models.Response, keys: List[str]):
@@ -210,7 +225,18 @@ class TIIProvider:
         self.result_folder.mkdir(exist_ok=True)
 
         # Save the stream to disk
-        _write_stream_response_to_folder(response.iter_content(), self.result_folder)
+        try:
+            _save_and_unpack_stream_response_to_folder(
+                response.iter_content(), self.result_folder
+            )
+        except tarfile.ReadError as err:
+            logger.error("Catched tarfile ReadError: %s", err)
+            logger.error(
+                "The received file is not a valid gzip "
+                "archive, the result might have to be inspected manually. Find "
+                "the file at `%s`",
+                self.result_folder.as_posix(),
+            )
 
         if response.headers["Job-Status"].lower() == "error":
             logger.info(

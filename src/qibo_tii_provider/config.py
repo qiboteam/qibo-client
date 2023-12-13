@@ -10,13 +10,11 @@ class MalformedResponseError(Exception):
 
 class JobPostServerError(Exception):
     """Exception raised when server fails to post the job to the queue.
-    
+
     The client should handle such error to aknowledge that job submission was
     not successful without crashing.
     """
 
-    def __init__(
-        self, message="Server failed to post job to queue"
-    ):
+    def __init__(self, message="Server failed to post job to queue"):
         self.message = message
         super().__init__(self.message)
