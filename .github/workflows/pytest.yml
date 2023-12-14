@@ -1,0 +1,32 @@
+name: pytest
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-latest
+    strategy:
+      max-parallel: 3
+      matrix:
+        python-version: [3.10]
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Setup Conda 
+      uses: conda-incubator/setup-miniconda@v2
+      with:
+          python-version: ${{ matrix.python-version }}
+          auto-update-conda: true
+    - name: Install dependencies and package
+      shell: bash --login {0}
+      run: |
+        conda info
+        python3 -m pip install --upgrade pip
+        pip install poetry
+        poetry install --without dev
+    - name: Test with pytest
+      shell: bash --login {0}
+      run: |
+        poetry install
+        python3 -m pytest --cov=src tests
