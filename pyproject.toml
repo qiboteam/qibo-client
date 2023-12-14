@@ -27,3 +27,20 @@ requests = "^2.31.0"
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
+
+[tool.poe.tasks]
+test = "python -m pytest cov=src tests"
+lint = "pylint --errors-only src"
+lint-warnings = "pylint --exit-zero src"
+
+[tool.pylint.reports]
+output-format = "colorized"
+
+[tool.pytest.ini_options]
+testpaths = ['tests/']
+filterwarnings = ['ignore::RuntimeWarning']
+addopts = [
+  '--cov=src/qibo_tii_provider',
+  '--cov-report=xml',
+  '--cov-report=html',
+]
