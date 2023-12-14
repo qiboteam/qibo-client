@@ -236,6 +236,7 @@ class TIIProvider:
                 "the file at `%s`",
                 self.results_folder.as_posix(),
             )
+            return
 
         if response.headers["Job-Status"].lower() == "error":
             logger.info(

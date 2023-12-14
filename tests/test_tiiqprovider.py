@@ -1,7 +1,7 @@
 from pathlib import Path
 import tarfile
 from typing import Callable
-from unittest.mock import patch, Mock
+from unittest.mock import call, patch, Mock
 
 import pytest
 from requests.exceptions import HTTPError
@@ -35,9 +35,54 @@ def mock_qibo():
 
 
 @pytest.fixture
+def results_base_folder(tmp_path: Path):
+    results_base_folder = tmp_path / "results"
+    results_base_folder.mkdir()
+    with patch(f"{PKG}.RESULTS_BASE_FOLDER", results_base_folder):
+        yield results_base_folder
+
+
+def _get_request_side_effect(job_status: str = "success") -> Callable:
+    """Return a callable mock for the get request function
+
+    Job status parameter controls the response header of `get_result/{pid}`
+    endpoint.
+
+    :param job_status: the Job-Status header of the mocked response
+    :type job_status: str
+
+    :return: the get request side effect function
+    :rtype: Callable
+    """
+
+    def _request_side_effect(url):
+        if url == LOCAL_URL + "qibo_version/":
+            return utils.MockedResponse(
+                status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
+            )
+        if url == LOCAL_URL + f"get_result/{FAKE_PID}/":
+            stream, _, _ = utils.get_in_memory_fake_archive_stream()
+            json_data = {
+                "content": None,
+                "iter_content": stream,
+                "headers": {"Job-Status": job_status},
+            }
+            return utils.MockedResponse(status_code=200, json_data=json_data)
+
+    return _request_side_effect
+
+
+def _post_request_side_effect(url, json):
+    if url == LOCAL_URL + "run_circuit/":
+        json_data = {"pid": FAKE_PID, "message": "Success. Job posted"}
+        return utils.MockedResponse(status_code=200, json_data=json_data)
+
+
+@pytest.fixture
 def mock_request():
-    """Returns a mocked get request"""
     with patch(f"{PKG}.requests") as _mock_request:
+        _mock_request.get.side_effect = _get_request_side_effect()
+        _mock_request.post.side_effect = _post_request_side_effect
         yield _mock_request
 
 
@@ -76,44 +121,32 @@ def _get_tii_client():
     return tiiprovider.TIIProvider("valid_token")
 
 
-def _execute_check_client_server_qibo_versions(
-    mock_request, local_qibo_version, remote_qibo_version
-):
-    mock_response = utils.MockedResponse(
-        status_code=200, json_data={"qibo_version": remote_qibo_version}
-    )
-    mock_request.get.return_value = mock_response
-    _get_tii_client()
-
-
 def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
-    _execute_check_client_server_qibo_versions(
-        mock_request, FAKE_QIBO_VERSION, FAKE_QIBO_VERSION
-    )
-
+    _get_tii_client()
     mock_request.get.assert_called_once_with(LOCAL_URL + "qibo_version/")
 
 
-def test_check_client_server_qibo_versions_with_version_mismatch(mock_request):
+def test_check_client_server_qibo_versions_with_version_mismatch(mock_request: Mock):
     remote_qibo_version = "0.2.2"
 
-    with pytest.raises(AssertionError):
-        _execute_check_client_server_qibo_versions(
-            mock_request, FAKE_QIBO_VERSION, remote_qibo_version
+    def _new_side_effect(url):
+        return utils.MockedResponse(
+            status_code=200, json_data={"qibo_version": remote_qibo_version}
         )
+
+    mock_request.get.side_effect = _new_side_effect
+
+    with pytest.raises(AssertionError):
+        _get_tii_client()
 
     mock_request.get.assert_called_once_with(LOCAL_URL + "qibo_version/")
 
 
 def test__post_circuit_with_invalid_token(mock_request: Mock):
-    mock_get_response = utils.MockedResponse(
-        status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
-    )
-    mock_request.get.return_value = mock_get_response
+    def _new_side_effect(url, json):
+        return utils.MockedResponse(status_code=404)
 
-    # simulate 404 error due to invalid token
-    mock_post_response = utils.MockedResponse(status_code=404)
-    mock_request.post.return_value = mock_post_response
+    mock_request.post.side_effect = _new_side_effect
 
     client = _get_tii_client()
     with pytest.raises(HTTPError):
@@ -121,15 +154,11 @@ def test__post_circuit_with_invalid_token(mock_request: Mock):
 
 
 def test__post_circuit_not_successful(mock_request: Mock):
-    mock_get_response = utils.MockedResponse(
-        status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
-    )
-    mock_request.get.return_value = mock_get_response
+    def _new_side_effect(url, json):
+        json_data = {"pid": None, "message": "post job to queue failed"}
+        return utils.MockedResponse(status_code=200, json_data=json_data)
 
-    # simulate 404 error due to invalid token
-    json_data = {"pid": None, "message": "post job to queue failed"}
-    mock_post_response = utils.MockedResponse(status_code=200, json_data=json_data)
-    mock_request.post.return_value = mock_post_response
+    mock_request.post.side_effect = _new_side_effect
 
     client = _get_tii_client()
     with pytest.raises(JobPostServerError):
@@ -137,15 +166,11 @@ def test__post_circuit_not_successful(mock_request: Mock):
 
 
 def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
-    mock_get_response = utils.MockedResponse(
-        status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
-    )
-    mock_request.get.return_value = mock_get_response
+    def _new_side_effect(url, json):
+        json_data = {"pid": None, "message": "post job to queue failed"}
+        return utils.MockedResponse(status_code=200, json_data=json_data)
 
-    # simulate 404 error due to invalid token
-    json_data = {"pid": None, "message": "post job to queue failed"}
-    mock_post_response = utils.MockedResponse(status_code=200, json_data=json_data)
-    mock_request.post.return_value = mock_post_response
+    mock_request.post.side_effect = _new_side_effect
 
     client = _get_tii_client()
     return_value = client.run_circuit(utils.MockedCircuit())
@@ -197,9 +222,7 @@ def test__write_stream_to_tmp_file(mock_tempfile: Mock, archive_path: Path):
     - a new temporary file is created to a specific direction
     - the content of the temporary file contains equals the one given
     """
-    stream, members, members_contents = utils.get_in_memory_fake_archive_stream(
-        archive_path
-    )
+    stream, members, members_contents = utils.get_in_memory_fake_archive_stream()
 
     assert not archive_path.is_file()
 
@@ -223,24 +246,31 @@ def test__extract_archive_to_folder_with_non_archive_input(tmp_path):
     file_path = tmp_path / "file.txt"
     file_path.write_text("test content")
 
-    destination_folder = tmp_path / "destination_folder"
-    destination_folder.mkdir()
-
     with pytest.raises(tarfile.ReadError):
-        tiiprovider._extract_archive_to_folder(file_path, destination_folder)
+        tiiprovider._extract_archive_to_folder(file_path, tmp_path)
 
 
-def test__extract_archive_to_folder(tmp_path, archive_path):
-    destination_folder = tmp_path / "destination_folder"
-    destination_folder.mkdir()
+@patch(
+    f"{PKG}._save_and_unpack_stream_response_to_folder", utils.raise_tarfile_readerror
+)
+def test__get_result_handles_tarfile_readerror(mock_request, results_base_folder):
+    file_path = results_base_folder / "file.txt"
+    file_path.write_text("test content")
 
+    client = _get_tii_client()
+    result = client.run_circuit(utils.MockedCircuit())
+
+    assert result is None
+
+
+def test__extract_archive_to_folder(archive_path, results_base_folder):
     members, members_contents = utils.create_fake_archive(archive_path)
 
-    tiiprovider._extract_archive_to_folder(archive_path, destination_folder)
+    tiiprovider._extract_archive_to_folder(archive_path, results_base_folder)
 
     result_members = []
     result_members_contents = []
-    for member_path in sorted(destination_folder.iterdir()):
+    for member_path in sorted(results_base_folder.iterdir()):
         result_members.append(member_path.name)
         result_members_contents.append(member_path.read_bytes())
 
@@ -249,108 +279,47 @@ def test__extract_archive_to_folder(tmp_path, archive_path):
 
 
 def test__save_and_unpack_stream_response_to_folder(
-    mock_tempfile: Mock, archive_path: Path, tmp_path: Path
+    mock_tempfile: Mock, archive_path: Path, results_base_folder: Path
 ):
-    destination_folder = tmp_path / "destination_folder"
-    destination_folder.mkdir()
-
-    stream, _, _ = utils.get_in_memory_fake_archive_stream(archive_path)
+    stream, _, _ = utils.get_in_memory_fake_archive_stream()
 
     assert not archive_path.is_file()
 
-    tiiprovider._save_and_unpack_stream_response_to_folder(stream, destination_folder)
+    tiiprovider._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
 
     # the archive should have been removed
     assert not archive_path.is_file()
 
 
-def _get_request_side_effect(job_status: str = "success") -> Callable:
-    """Return a callable mock for the get request function
-
-    Job status parameter controls the response header of `get_result/{pid}`
-    endpoint.
-
-    :param job_status: the Job-Status header of the mocked response
-    :type job_status: str
-
-    :return: the get request side effect function
-    :rtype: Callable
-    """
-
-    def _request_side_effect(url):
-        if url == LOCAL_URL + "qibo_version/":
-            return utils.MockedResponse(
-                status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
-            )
-        if url == LOCAL_URL + f"get_result/{FAKE_PID}/":
-            stream, _, _ = utils.get_in_memory_fake_archive_stream(archive_path)
-            json_data = {
-                "content": None,
-                "iter_content": stream,
-                "headers": {"Job-Status": job_status},
-            }
-            return utils.MockedResponse(status_code=200, json_data=json_data)
-
-    return _request_side_effect
-
-
-def _post_request_side_effect(url, json):
-    if url == LOCAL_URL + "run_circuit/":
-        json_data = {"pid": FAKE_PID, "message": "Success. Job posted"}
-        return utils.MockedResponse(status_code=200, json_data=json_data)
-
-
-@pytest.fixture
-def mock_all_request_methods():
-    with patch(f"{PKG}.requests") as _mock_request:
-        _mock_request.get.side_effect = _get_request_side_effect()
-        _mock_request.post.side_effect = _post_request_side_effect
-        yield _mock_request
-
-
-def _generic_test__get_results_fn(results_base_folder: Path):
-    results_base_folder.mkdir()
-
-    with patch(f"{PKG}.RESULTS_BASE_FOLDER", results_base_folder):
-        client = _get_tii_client()
-        client.pid = FAKE_PID
-        return client._get_result()
-
-
-def test__get_result(mock_qibo, mock_all_request_methods, mock_tempfile, tmp_path):
-    results_base_folder = tmp_path / "results"
+def test__get_result(mock_qibo, mock_request, mock_tempfile, results_base_folder):
     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
 
-    result = _generic_test__get_results_fn(results_base_folder)
+    client = _get_tii_client()
+    client.pid = FAKE_PID
+    result = client._get_result()
 
     mock_qibo.result.load_result.assert_called_once_with(expected_array_path)
     assert result == expected_array_path
 
 
 def test__get_result_with_job_status_error(
-    mock_qibo, mock_all_request_methods, mock_tempfile, tmp_path
+    mock_qibo, mock_request, mock_tempfile, results_base_folder
 ):
-    mock_all_request_methods.get.side_effect = _get_request_side_effect(
-        job_status="error"
-    )
+    mock_request.get.side_effect = _get_request_side_effect(job_status="error")
 
-    results_base_folder = tmp_path / "results"
-
-    result = _generic_test__get_results_fn(results_base_folder)
+    client = _get_tii_client()
+    client.pid = FAKE_PID
+    result = client._get_result()
 
     mock_qibo.result.load_result.assert_not_called()
     assert result is None
 
 
-def test__run_circuit(mock_qibo, mock_all_request_methods, mock_tempfile, tmp_path):
-    results_base_folder = tmp_path / "results"
+def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
 
-    results_base_folder.mkdir()
-
-    with patch(f"{PKG}.RESULTS_BASE_FOLDER", results_base_folder):
-        client = _get_tii_client()
-        client.pid = FAKE_PID
-        result = client.run_circuit(utils.MockedCircuit())
+    client = _get_tii_client()
+    client.pid = FAKE_PID
+    result = client.run_circuit(utils.MockedCircuit())
 
     assert result == expected_array_path

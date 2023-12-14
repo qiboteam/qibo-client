@@ -1,7 +1,7 @@
 import io
 from pathlib import Path
 import tarfile
-from typing import Dict, List, Optional, Tuple
+from typing import Dict, Generator, List, Optional, Tuple
 
 from requests.exceptions import HTTPError
 
@@ -12,9 +12,9 @@ class MockedResponse:
     def __init__(self, status_code: int, json_data: Optional[Dict] = None):
         self.status_code = status_code
         self._json = json_data or {}
-        self.headers = json_data.get("headers")
-        self.content = json_data.get("content")
-        self._iter_content = json_data.get("iter_content")
+        self.headers = self._json.get("headers")
+        self.content = self._json.get("content")
+        self._iter_content = self._json.get("iter_content")
 
     def json(self) -> Dict:
         return self._json
@@ -59,7 +59,7 @@ class FakeStreamingHttpResponse:
                         yield byte
 
 
-def _generic_create_archive_(archive_path, get_file_context_manager_fn):
+def _generic_create_archive_(get_file_context_manager_fn):
     members = ["member1.txt", "member2.txt"]
     members_contents = [
         b"This is the content of member1.txt.",
@@ -75,7 +75,7 @@ def _generic_create_archive_(archive_path, get_file_context_manager_fn):
         return members, members_contents
 
 
-def create_fake_archive(archive_path: Path) -> Tuple[List[str], List[str]]:
+def create_fake_archive(archive_path: Path) -> Tuple[List[str], List[bytes]]:
     """Create a .tar.gz archive with fake members and
 
 
@@ -85,39 +85,37 @@ def create_fake_archive(archive_path: Path) -> Tuple[List[str], List[str]]:
     :return: the list with the archive file members
     :rtype: List[str]
     :return: the list with the contents of each archive file member
-    :rtype: List[str]
+    :rtype: List[bytes]
     """
     members, members_contents = _generic_create_archive_(
-        archive_path, lambda: tarfile.open(archive_path, "w:gz")
+        lambda: tarfile.open(archive_path, "w:gz")
     )
     return members, members_contents
 
 
-def create_in_memory_fake_archive(archive_path: Path):
+def create_in_memory_fake_archive() -> Tuple[bytes, List[str], List[bytes]]:
     with io.BytesIO() as buffer:
         members, members_contents = _generic_create_archive_(
-            archive_path, lambda: tarfile.open(fileobj=buffer, mode="w:gz")
+            lambda: tarfile.open(fileobj=buffer, mode="w:gz")
         )
         archive_as_bytes = buffer.getvalue()
     return archive_as_bytes, members, members_contents
 
 
-class TarGzFileStreamer:
-    def __init__(self, data, chunk_size=128):
+class DataStreamer:
+    def __init__(self, data: bytes, chunk_size: int = 128):
         self.data = data
         self.chunk_size = chunk_size
         self.size = len(data)
 
-    def __iter__(self):
+    def __iter__(self) -> Generator[None, bytes, None]:
         for i in range(0, len(self.data), self.chunk_size):
             yield self.data[i : i + self.chunk_size]
 
 
-def get_in_memory_fake_archive_stream(archive_path):
-    archive_as_bytes, members, members_contents = create_in_memory_fake_archive(
-        archive_path
-    )
-    return TarGzFileStreamer(archive_as_bytes), members, members_contents
+def get_in_memory_fake_archive_stream():
+    archive_as_bytes, members, members_contents = create_in_memory_fake_archive()
+    return DataStreamer(archive_as_bytes), members, members_contents
 
 
 def get_fake_tmp_file_class(file_path: Path):
@@ -133,3 +131,7 @@ def get_fake_tmp_file_class(file_path: Path):
             self.opened_file.close()
 
     return TmpFile
+
+
+def raise_tarfile_readerror(*args):
+    raise tarfile.ReadError()
