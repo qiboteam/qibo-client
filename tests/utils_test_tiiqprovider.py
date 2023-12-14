@@ -1,6 +1,6 @@
 import io
-from pathlib import Path
 import tarfile
+from pathlib import Path
 from typing import Dict, Generator, List, Optional, Tuple
 
 from requests.exceptions import HTTPError

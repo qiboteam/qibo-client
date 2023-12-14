@@ -1,21 +1,21 @@
-from pathlib import Path
 import tarfile
+from pathlib import Path
 from typing import Callable
-from unittest.mock import call, patch, Mock
+from unittest.mock import Mock, call, patch
 
 import pytest
 from requests.exceptions import HTTPError
 
 import tests.utils_test_tiiqprovider as utils
-
 from qibo_tii_provider import tiiprovider
-from qibo_tii_provider.config import MalformedResponseError, JobPostServerError
+from qibo_tii_provider.config import JobPostServerError, MalformedResponseError
 
 PKG = "qibo_tii_provider.tiiprovider"
 LOCAL_URL = "http://localhost:8000/"
 FAKE_QIBO_VERSION = "0.0.1"
 FAKE_PID = "123"
 ARCHIVE_NAME = "file.tar.gz"
+TIMEOUT = 1
 
 
 @pytest.fixture(autouse=True)
@@ -32,6 +32,13 @@ def mock_qibo():
         _mock_qibo.__version__ = FAKE_QIBO_VERSION
         _mock_qibo.result.load_result.side_effect = lambda x: x
         yield _mock_qibo
+
+
+@pytest.fixture(scope="module", autouse=True)
+def mock_timeout():
+    """Ensure that all the requests are made on localhost"""
+    with patch(f"{PKG}.TIMEOUT", TIMEOUT) as _fixture:
+        yield _fixture
 
 
 @pytest.fixture
@@ -55,10 +62,11 @@ def _get_request_side_effect(job_status: str = "success") -> Callable:
     :rtype: Callable
     """
 
-    def _request_side_effect(url):
+    def _request_side_effect(url, timeout):
         if url == LOCAL_URL + "qibo_version/":
             return utils.MockedResponse(
-                status_code=200, json_data={"qibo_version": FAKE_QIBO_VERSION}
+                status_code=200,
+                json_data={"qibo_version": FAKE_QIBO_VERSION},
             )
         if url == LOCAL_URL + f"get_result/{FAKE_PID}/":
             stream, _, _ = utils.get_in_memory_fake_archive_stream()
@@ -72,7 +80,7 @@ def _get_request_side_effect(job_status: str = "success") -> Callable:
     return _request_side_effect
 
 
-def _post_request_side_effect(url, json):
+def _post_request_side_effect(url, json, timeout):
     if url == LOCAL_URL + "run_circuit/":
         json_data = {"pid": FAKE_PID, "message": "Success. Job posted"}
         return utils.MockedResponse(status_code=200, json_data=json_data)
@@ -123,13 +131,15 @@ def _get_tii_client():
 
 def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
     _get_tii_client()
-    mock_request.get.assert_called_once_with(LOCAL_URL + "qibo_version/")
+    mock_request.get.assert_called_once_with(
+        LOCAL_URL + "qibo_version/", timeout=TIMEOUT
+    )
 
 
 def test_check_client_server_qibo_versions_with_version_mismatch(mock_request: Mock):
     remote_qibo_version = "0.2.2"
 
-    def _new_side_effect(url):
+    def _new_side_effect(url, timeout):
         return utils.MockedResponse(
             status_code=200, json_data={"qibo_version": remote_qibo_version}
         )
@@ -139,11 +149,13 @@ def test_check_client_server_qibo_versions_with_version_mismatch(mock_request: M
     with pytest.raises(AssertionError):
         _get_tii_client()
 
-    mock_request.get.assert_called_once_with(LOCAL_URL + "qibo_version/")
+    mock_request.get.assert_called_once_with(
+        LOCAL_URL + "qibo_version/", timeout=TIMEOUT
+    )
 
 
 def test__post_circuit_with_invalid_token(mock_request: Mock):
-    def _new_side_effect(url, json):
+    def _new_side_effect(url, json, timeout):
         return utils.MockedResponse(status_code=404)
 
     mock_request.post.side_effect = _new_side_effect
@@ -154,7 +166,7 @@ def test__post_circuit_with_invalid_token(mock_request: Mock):
 
 
 def test__post_circuit_not_successful(mock_request: Mock):
-    def _new_side_effect(url, json):
+    def _new_side_effect(url, json, timeout):
         json_data = {"pid": None, "message": "post job to queue failed"}
         return utils.MockedResponse(status_code=200, json_data=json_data)
 
@@ -166,7 +178,7 @@ def test__post_circuit_not_successful(mock_request: Mock):
 
 
 def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
-    def _new_side_effect(url, json):
+    def _new_side_effect(url, json, timeout):
         json_data = {"pid": None, "message": "post job to queue failed"}
         return utils.MockedResponse(status_code=200, json_data=json_data)
 

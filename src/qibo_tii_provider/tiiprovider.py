@@ -1,16 +1,17 @@
-from pathlib import Path
+"""The module implementing the TIIProvider class."""
+import logging
+import os
 import tarfile
 import tempfile
 import time
+from pathlib import Path
 from typing import Iterable, List, Optional
-import os
 
 import numpy as np
 import qibo
 import requests
 
-from .config import MalformedResponseError, JobPostServerError
-
+from .config import JobPostServerError, MalformedResponseError
 
 QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
 QRCCLUSTER_PORT = os.environ.get("QRCCLUSTER_PORT", "8010")
@@ -22,13 +23,14 @@ BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
 
-# configure logger
-import logging
+TIMEOUT = 10
 
+
+# configure logger
 logging.basicConfig(format="[%(asctime)s] %(levelname)s: %(message)s")
 logger = logging.getLogger(__name__)
-logging_level = logging.INFO
-logger.setLevel(logging_level)
+LOGGING_LEVEL = logging.INFO
+logger.setLevel(LOGGING_LEVEL)
 
 
 def wait_for_response_to_get_request(url: str) -> requests.models.Response:
@@ -41,7 +43,7 @@ def wait_for_response_to_get_request(url: str) -> requests.models.Response:
     :rtype: requests.models.Response
     """
     while True:
-        response = requests.get(url)
+        response = requests.get(url, timeout=TIMEOUT)
         if response.content == b"Job still in progress":
             time.sleep(SECONDS_BETWEEN_CHECKS)
             continue
@@ -118,6 +120,10 @@ class TIIProvider:
         """
         self.token = token
 
+        self.pid = None
+        self.results_folder = None
+        self.results_path = None
+
         self.check_client_server_qibo_versions()
 
     def check_client_server_qibo_versions(self):
@@ -126,15 +132,17 @@ class TIIProvider:
         Raise assertion error if the two versions are not the same.
         """
         url = BASE_URL + "qibo_version/"
-        response = requests.get(url)
+        response = requests.get(url, timeout=TIMEOUT)
         response.raise_for_status()
         check_response_has_keys(response, ["qibo_version"])
         qibo_server_version = response.json()["qibo_version"]
         qibo_local_version = qibo.__version__
 
-        assert (
-            qibo_local_version == qibo_server_version
-        ), f"Local Qibo package version does not match the server one, please upgrade: {qibo_local_version} -> {qibo_server_version}"
+        msg = (
+            "Local Qibo package version does not match the server one, please "
+            f"upgrade: {qibo_local_version} -> {qibo_server_version}"
+        )
+        assert qibo_local_version == qibo_server_version, msg
 
     def run_circuit(
         self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim"
@@ -173,7 +181,7 @@ class TIIProvider:
             self._post_circuit(circuit, nshots, device)
         except JobPostServerError as err:
             logger.error(err.message)
-            return
+            return None
 
         # retrieve results
         logger.info("Job posted on server with pid %s", self.pid)
@@ -193,7 +201,7 @@ class TIIProvider:
             "nshots": nshots,
             "device": device,
         }
-        response = requests.post(url, json=payload)
+        response = requests.post(url, json=payload, timeout=TIMEOUT)
 
         # checks
         response.raise_for_status()
@@ -236,7 +244,7 @@ class TIIProvider:
                 "the file at `%s`",
                 self.results_folder.as_posix(),
             )
-            return
+            return None
 
         if response.headers["Job-Status"].lower() == "error":
             logger.info(

@@ -1,3 +1,6 @@
+"""This module implements some constants and custom exceptions"""
+
+
 class MalformedResponseError(Exception):
     """Exception raised when server responsed body does not contain expected keys"""
 
