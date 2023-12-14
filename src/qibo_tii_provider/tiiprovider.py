@@ -59,7 +59,6 @@ def _write_stream_to_tmp_file(stream: Iterable) -> Path:
     :return: the name of the tempo
 
     """
-
     with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
         for chunk in stream:
             if chunk:
@@ -210,8 +209,8 @@ class TIIProvider:
     def _get_result(self) -> Optional[np.ndarray]:
         """Send requests to server checking whether the job is completed.
 
-        This function populates the `TIIProvider.result_folder` and
-        `TIIProvider.result_path` attributes.
+        This function populates the `TIIProvider.results_folder` and
+        `TIIProvider.results_path` attributes.
 
         :return: the numpy array with the results of the computation. None if
         the job raised an error.
@@ -221,13 +220,13 @@ class TIIProvider:
         response = wait_for_response_to_get_request(url)
 
         # create the job results folder
-        self.result_folder = RESULTS_BASE_FOLDER / self.pid
-        self.result_folder.mkdir(exist_ok=True)
+        self.results_folder = RESULTS_BASE_FOLDER / self.pid
+        self.results_folder.mkdir(exist_ok=True)
 
         # Save the stream to disk
         try:
             _save_and_unpack_stream_response_to_folder(
-                response.iter_content(), self.result_folder
+                response.iter_content(), self.results_folder
             )
         except tarfile.ReadError as err:
             logger.error("Catched tarfile ReadError: %s", err)
@@ -235,15 +234,15 @@ class TIIProvider:
                 "The received file is not a valid gzip "
                 "archive, the result might have to be inspected manually. Find "
                 "the file at `%s`",
-                self.result_folder.as_posix(),
+                self.results_folder.as_posix(),
             )
 
         if response.headers["Job-Status"].lower() == "error":
             logger.info(
                 "Job exited with error, check logs in %s folder",
-                self.result_folder.as_posix(),
+                self.results_folder.as_posix(),
             )
             return None
 
-        self.result_path = self.result_folder / "results.npy"
-        return qibo.result.load_result(self.result_path)
+        self.results_path = self.results_folder / "results.npy"
+        return qibo.result.load_result(self.results_path)

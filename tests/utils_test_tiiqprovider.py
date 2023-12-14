@@ -1,4 +1,6 @@
+import io
 from pathlib import Path
+import tarfile
 from typing import Dict, List, Optional, Tuple
 
 from requests.exceptions import HTTPError
@@ -9,9 +11,10 @@ class MockedResponse:
 
     def __init__(self, status_code: int, json_data: Optional[Dict] = None):
         self.status_code = status_code
-        self._json = json_data
-        self.content = json_data.get("content") if json_data is not None else None
-        self._iter_content = json_data.get("content") if json_data is not None else None
+        self._json = json_data or {}
+        self.headers = json_data.get("headers")
+        self.content = json_data.get("content")
+        self._iter_content = json_data.get("iter_content")
 
     def json(self) -> Dict:
         return self._json
@@ -37,10 +40,6 @@ class MockedCircuit:
 
     def __init__(self):
         self.raw = "raw circuit representation"
-
-
-import io
-import tarfile
 
 
 class FakeStreamingHttpResponse:
