@@ -26,4 +26,7 @@ jobs:
       - name: Install dependencies
         run: poetry install --with dev
       - name: Run Tests
-        run: python3 -m pytest --cov=src tests
+        run: |
+          which python3
+          pip list
+          python3 -m pytest --cov=src tests
