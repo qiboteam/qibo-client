@@ -29,7 +29,7 @@ pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 
 [tool.poe.tasks]
-test = "python -m pytest cov=src tests"
+test = "pytest"
 lint = "pylint --errors-only src"
 lint-warnings = "pylint --exit-zero src"
 
