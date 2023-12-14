@@ -1,12 +1,12 @@
 import tarfile
 from pathlib import Path
 from typing import Callable
-from unittest.mock import Mock, call, patch
+from unittest.mock import Mock, patch
 
 import pytest
 from requests.exceptions import HTTPError
 
-import tests.utils_test_tiiqprovider as utils
+import utils_test_tiiqprovider as utils
 from qibo_tii_provider import tiiprovider
 from qibo_tii_provider.config import JobPostServerError, MalformedResponseError
 
