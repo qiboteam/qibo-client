@@ -164,4 +164,4 @@ examples/token.txt
 examples/results/
 
 # configuration variables
-src/tiiq_provider/.env
+src/tii_qrc_provider/.env

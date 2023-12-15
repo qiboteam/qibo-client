@@ -6,11 +6,11 @@ from unittest.mock import Mock, patch
 import pytest
 from requests.exceptions import HTTPError
 
-import utils_test_tiiqprovider as utils
-from qibo_tii_provider import tiiprovider
+import utils_test_tii_qrc_provider as utils
+from qibo_tii_provider import tii_qrc_provider
 from qibo_tii_provider.config import JobPostServerError, MalformedResponseError
 
-PKG = "qibo_tii_provider.tiiprovider"
+PKG = "qibo_tii_provider.tii_qrc_provider"
 LOCAL_URL = "http://localhost:8000/"
 FAKE_QIBO_VERSION = "0.0.1"
 FAKE_PID = "123"
@@ -112,7 +112,7 @@ def test_check_response_has_keys():
     json_data = {"key1": 0, "key2": 1}
     status_code = 200
     mock_response = utils.MockedResponse(status_code, json_data)
-    tiiprovider.check_response_has_keys(mock_response, keys)
+    tii_qrc_provider.check_response_has_keys(mock_response, keys)
 
 
 def test_check_response_has_missing_keys():
@@ -122,11 +122,11 @@ def test_check_response_has_missing_keys():
     status_code = 200
     mock_response = utils.MockedResponse(status_code, json_data)
     with pytest.raises(MalformedResponseError):
-        tiiprovider.check_response_has_keys(mock_response, keys)
+        tii_qrc_provider.check_response_has_keys(mock_response, keys)
 
 
 def _get_tii_client():
-    return tiiprovider.TIIProvider("valid_token")
+    return tii_qrc_provider.TIIProvider("valid_token")
 
 
 def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
@@ -202,7 +202,7 @@ def test_wait_for_response_to_get_request(mock_request: Mock):
     mock_request.get.side_effect = [keep_waiting] * failed_attempts + [job_done]
 
     with patch(f"{PKG}.SECONDS_BETWEEN_CHECKS", 1e-4):
-        tiiprovider.wait_for_response_to_get_request(url)
+        tii_qrc_provider.wait_for_response_to_get_request(url)
 
     assert mock_request.get.call_count == failed_attempts + 1
 
@@ -220,7 +220,7 @@ def test__write_stream_to_tmp_file_with_simple_text_stream(
 
     assert not archive_path.is_file()
 
-    result_path = tiiprovider._write_stream_to_tmp_file(stream)
+    result_path = tii_qrc_provider._write_stream_to_tmp_file(stream)
 
     assert result_path == archive_path
     assert result_path.is_file()
@@ -238,7 +238,7 @@ def test__write_stream_to_tmp_file(mock_tempfile: Mock, archive_path: Path):
 
     assert not archive_path.is_file()
 
-    result_path = tiiprovider._write_stream_to_tmp_file(stream)
+    result_path = tii_qrc_provider._write_stream_to_tmp_file(stream)
 
     assert result_path == archive_path
     assert result_path.is_file()
@@ -259,7 +259,7 @@ def test__extract_archive_to_folder_with_non_archive_input(tmp_path):
     file_path.write_text("test content")
 
     with pytest.raises(tarfile.ReadError):
-        tiiprovider._extract_archive_to_folder(file_path, tmp_path)
+        tii_qrc_provider._extract_archive_to_folder(file_path, tmp_path)
 
 
 @patch(
@@ -278,7 +278,7 @@ def test__get_result_handles_tarfile_readerror(mock_request, results_base_folder
 def test__extract_archive_to_folder(archive_path, results_base_folder):
     members, members_contents = utils.create_fake_archive(archive_path)
 
-    tiiprovider._extract_archive_to_folder(archive_path, results_base_folder)
+    tii_qrc_provider._extract_archive_to_folder(archive_path, results_base_folder)
 
     result_members = []
     result_members_contents = []
@@ -297,7 +297,7 @@ def test__save_and_unpack_stream_response_to_folder(
 
     assert not archive_path.is_file()
 
-    tiiprovider._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
+    tii_qrc_provider._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
 
     # the archive should have been removed
     assert not archive_path.is_file()
