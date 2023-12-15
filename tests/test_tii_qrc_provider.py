@@ -297,7 +297,9 @@ def test__save_and_unpack_stream_response_to_folder(
 
     assert not archive_path.is_file()
 
-    tii_qrc_provider._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
+    tii_qrc_provider._save_and_unpack_stream_response_to_folder(
+        stream, results_base_folder
+    )
 
     # the archive should have been removed
     assert not archive_path.is_file()
