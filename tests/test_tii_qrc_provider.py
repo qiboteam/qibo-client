@@ -4,9 +4,9 @@ from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
+import utils_test_tii_qrc_provider as utils
 from requests.exceptions import HTTPError
 
-import utils_test_tii_qrc_provider as utils
 from qibo_tii_provider import tii_qrc_provider
 from qibo_tii_provider.config import JobPostServerError, MalformedResponseError
 
