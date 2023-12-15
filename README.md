@@ -29,7 +29,7 @@ Please, sign up to [this link](http://http://login.qrccluster.com:8010/) to
 obtain the needed token to run computations on the cluster.
 
 The following snippet provides a basic usage example.
-Replace the `your-tiiq-token` string with your user token received during the
+Replace the `your-tii-qrc-token` string with your user token received during the
 registration process.
 
 ```python
@@ -40,7 +40,7 @@ from qibo_tii_provider import TIIProvider
 circuit = qibo.models.QFT(5)
 
 # authenticate to server through the client instance
-token = "your-tiiq-token"
+token = "your-tii-qrc-token"
 client = TIIProvider(token)
 
 # run the circuit
