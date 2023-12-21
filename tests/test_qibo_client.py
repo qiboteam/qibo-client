@@ -297,9 +297,7 @@ def test__save_and_unpack_stream_response_to_folder(
 
     assert not archive_path.is_file()
 
-    qibo_client._save_and_unpack_stream_response_to_folder(
-        stream, results_base_folder
-    )
+    qibo_client._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
 
     # the archive should have been removed
     assert not archive_path.is_file()

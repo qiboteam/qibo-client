@@ -1,5 +1,4 @@
 """The module implementing the TIIProvider class."""
-from abc import ABC, abstractmethod
 import logging
 import os
 import tarfile
@@ -245,6 +244,7 @@ class Client:
 
         self.results_path = self.results_folder / "results.npy"
         return qibo.result.load_result(self.results_path)
+
 
 def TII(token: str) -> Client:
     """Instantiate a TII Client object.
