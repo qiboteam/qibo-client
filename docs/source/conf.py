@@ -20,9 +20,9 @@ import qibo_tii_provider
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = 'qibo-tii-provider'
-copyright = 'The Qibo team'
-author = 'The Qibo team'
+project = "qibo-tii-provider"
+copyright = "The Qibo team"
+author = "The Qibo team"
 release = qibo_tii_provider.__version__
 
 # -- General configuration ---------------------------------------------------
