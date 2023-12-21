@@ -1,6 +1,7 @@
 # TiiQ Provider
 
-The documentation of the project can be found [here](https://qibo.science/qibo-client/stable/).
+The documentation of the project can be found
+[here](https://qibo.science/qibo-client/stable/).
 
 ## Install
 
