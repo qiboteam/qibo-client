@@ -34,7 +34,7 @@ The TiiQ Provider package can be installed through pip:
 Tutorials
 =========
 
-Once installed, the provider allows to run quantum circuit computations on the 
+Once installed, the provider allows to run quantum circuit computations on the
 remote server.
 
 .. note::
