@@ -73,7 +73,7 @@ html_theme = "furo"
 html_favicon = "favicon.ico"
 
 # custom title
-html_title = "Qibo TII Provider · v" + release
+html_title = "Qibo · v" + release
 
 html_theme_options = {
     "top_of_page_button": "edit",
