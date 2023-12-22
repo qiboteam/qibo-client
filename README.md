@@ -15,7 +15,7 @@ source activate ./env/bin/activate
 The `TiiQ Provider` package can be installed through `pip`:
 
 ```bash
-pip install git+ssh://git@github.com/qiboteam/qibo-tii-provider.git
+pip install git+ssh://git@github.com/qiboteam/qibo-client.git
 ```
 
 ## Quickstart
@@ -34,14 +34,14 @@ registration process.
 
 ```python
 import qibo
-from qibo_tii_provider import TIIProvider
+import qibo_client
 
 # create the circuit you want to run
 circuit = qibo.models.QFT(5)
 
 # authenticate to server through the client instance
 token = "your-tii-qrc-token"
-client = TIIProvider(token)
+client = qibo_client.TII(token)
 
 # run the circuit
 result = client.run_circuit(circuit, nshots=1000, dev="sim")

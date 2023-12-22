@@ -13,12 +13,9 @@ import requests
 
 from .config import JobPostServerError, MalformedResponseError
 
-QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
-QRCCLUSTER_PORT = os.environ.get("QRCCLUSTER_PORT", "8010")
+
 RESULTS_BASE_FOLDER = os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
 SECONDS_BETWEEN_CHECKS = os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
-
-BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 
 RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
@@ -244,15 +241,3 @@ class Client:
 
         self.results_path = self.results_folder / "results.npy"
         return qibo.result.load_result(self.results_path)
-
-
-def TII(token: str) -> Client:
-    """Instantiate a TII Client object.
-
-    :param token: the authentication token associated to the webapp user
-    :type token: str
-
-    :return: the client instance connected to the TII server
-    :rtype: Client
-    """
-    return Client(BASE_URL, token)

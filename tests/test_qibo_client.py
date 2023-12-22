@@ -19,13 +19,6 @@ TIMEOUT = 1
 
 
 @pytest.fixture(autouse=True)
-def mock_qrccluster_ip():
-    """Ensure that all the requests are made on localhost"""
-    with patch(f"{PKG}.BASE_URL", LOCAL_URL) as _fixture:
-        yield _fixture
-
-
-@pytest.fixture(autouse=True)
 def mock_qibo():
     """Ensure that all the requests are made on localhost"""
     with patch(f"{PKG}.qibo") as _mock_qibo:
@@ -126,7 +119,7 @@ def test_check_response_has_missing_keys():
 
 
 def _get_tii_client():
-    return qibo_client.TII("valid_token")
+    return qibo_client.Client(LOCAL_URL, "valid_token")
 
 
 def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
