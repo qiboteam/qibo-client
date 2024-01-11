@@ -92,9 +92,8 @@ def _save_and_unpack_stream_response_to_folder(stream: Iterable, results_folder:
 def check_response_has_keys(response: requests.models.Response, keys: List[str]):
     """Check that the response body contains certain keys.
 
-
     :raises MalformedResponseError: if the server response does not contain all
-    the expected keys
+    the expected keys.
     """
     response_keys = set(response.json().keys())
     expected_keys = set(keys)
