@@ -1,4 +1,4 @@
-# TiiQ Provider
+# Qibo client
 
 The documentation of the project can be found
 [here](https://qibo.science/qibo-client/stable/).
