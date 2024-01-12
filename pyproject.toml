@@ -29,7 +29,6 @@ pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 pylint = "^3.0.3"
 
-
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
 recommonmark = "^0.7.1"
@@ -41,6 +40,9 @@ furo = "^2023.9.10"
 test = "pytest"
 lint = "pylint --errors-only src"
 lint-warnings = "pylint --exit-zero src"
+docs = "make -C doc html"
+docs-clean = "make -C doc clean"
+test-docs = "make -C doc doctest"
 
 [tool.pylint.reports]
 output-format = "colorized"
