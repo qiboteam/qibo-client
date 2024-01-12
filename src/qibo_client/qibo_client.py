@@ -92,8 +92,13 @@ def _save_and_unpack_stream_response_to_folder(stream: Iterable, results_folder:
 def check_response_has_keys(response: requests.models.Response, keys: List[str]):
     """Check that the response body contains certain keys.
 
-    :raises MalformedResponseError: if the server response does not contain all
-    the expected keys.
+    :param response: the server response
+    :type response: requests.models.Response
+    :param keys: the keys to be checked in the response body
+    :type keys: List[str]
+
+    :raises MalformedResponseError:
+        if the server response does not contain all the expected keys.
     """
     response_keys = set(response.json().keys())
     expected_keys = set(keys)
@@ -149,13 +154,14 @@ class Client:
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots:
+        :param nshots: number of shots
         :type nshots: int
         :param device: the device to run the circuit on. Default device is `sim`
         :type device: str
 
-        :return: the numpy array with the results of the computation. None if
-        the job raised an error.
+        :return:
+            the numpy array with the results of the computation. None if the job
+            raised an error.
         :rtype: np.ndarray
         """
         # post circuit to server
