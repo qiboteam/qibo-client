@@ -3,21 +3,21 @@ requires = ["poetry-core>=1.0.0"]
 build-backend = "poetry.core.masonry.api"
 
 [tool.poetry]
-name = "qibo_tii_provider"
+name = "qibo-client"
 version = "0.0.1"
-description = "Qibo interface to TII quantum hardware."
+description = "Qibo client interface."
 authors = ["The Qibo team"]
 license = "Apache License 2.0"
 readme = "README.md"
 homepage = "https://qibo.science/"
-repository = "https://github.com/qiboteam/qibo-tii-provider/"
-documentation = "https://qibo.science/docs/qibo/stable"
+repository = "https://github.com/qiboteam/qibo-client/"
+documentation = "https://qibo.science/qibo-client/stable"
 keywords = []
 classifiers = [
   "Programming Language :: Python :: 3",
   "Topic :: Scientific/Engineering :: Physics",
 ]
-packages = [{ include = "qibo_tii_provider", from = "src" }]
+packages = [{ include = "qibo_client", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
@@ -49,7 +49,7 @@ output-format = "colorized"
 testpaths = ['tests/']
 filterwarnings = ['ignore::RuntimeWarning']
 addopts = [
-  '--cov=src/qibo_tii_provider',
+  '--cov=src/qibo_client',
   '--cov-report=xml',
   '--cov-report=html',
 ]

@@ -13,12 +13,8 @@ import requests
 
 from .config import JobPostServerError, MalformedResponseError
 
-QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "login.qrccluster.com")
-QRCCLUSTER_PORT = os.environ.get("QRCCLUSTER_PORT", "8010")
 RESULTS_BASE_FOLDER = os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
 SECONDS_BETWEEN_CHECKS = os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
-
-BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
 
 RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
 RESULTS_BASE_FOLDER.mkdir(exist_ok=True)
@@ -109,14 +105,17 @@ def check_response_has_keys(response: requests.models.Response, keys: List[str])
         )
 
 
-class TIIProvider:
+class Client:
     """Class to manage the interaction with the QRC cluster."""
 
-    def __init__(self, token: str):
+    def __init__(self, url: str, token: str):
         """
+        :param url: the server address
+        :type url: str
         :param token: the authentication token associated to the webapp user
-        :type: str
+        :type token: str
         """
+        self.url = url
         self.token = token
 
         self.pid = None
@@ -130,7 +129,7 @@ class TIIProvider:
 
         Raise assertion error if the two versions are not the same.
         """
-        url = BASE_URL + "qibo_version/"
+        url = self.url + "qibo_version/"
         response = requests.get(url, timeout=TIMEOUT)
         response.raise_for_status()
         check_response_has_keys(response, ["qibo_version"])
@@ -147,20 +146,6 @@ class TIIProvider:
         self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim"
     ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
-
-        List of available devices:
-
-        - sim
-        - iqm5q
-        - spinq10q
-        - tii1q_b1
-        - qw25q_gold
-        - tiidc
-        - tii2q
-        - tii2q1
-        - tii2q2
-        - tii2q3
-        - tii2q4
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
@@ -193,7 +178,7 @@ class TIIProvider:
         self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
     ):
         # HTTP request
-        url = BASE_URL + "run_circuit/"
+        url = self.url + "run_circuit/"
         payload = {
             "token": self.token,
             "circuit": circuit.raw,
@@ -223,7 +208,7 @@ class TIIProvider:
         the job raised an error.
         :rtype: Optional[np.ndarray]
         """
-        url = BASE_URL + f"get_result/{self.pid}/"
+        url = self.url + f"get_result/{self.pid}/"
         response = wait_for_response_to_get_request(url)
 
         # create the job results folder
