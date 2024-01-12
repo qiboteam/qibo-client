@@ -15,15 +15,15 @@ import sys
 from recommonmark.transform import AutoStructify
 
 sys.path.insert(0, os.path.abspath(".."))
-import qibo_tii_provider
+import qibo_client
 
 # -- Project information -----------------------------------------------------
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#project-information
 
-project = "qibo-tii-provider"
+project = "qibo-client"
 copyright = "The Qibo team"
 author = "The Qibo team"
-release = qibo_tii_provider.__version__
+release = qibo_client.__version__
 
 # -- General configuration ---------------------------------------------------
 #
