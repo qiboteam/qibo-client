@@ -3,10 +3,10 @@
    You can adapt this file completely to your liking, but it should at least
    contain the root `toctree` directive.
 
-Welcome to qibo-client's documentation!
-=============================================
+What is qibo-client?
+====================
 
-Qqibo-client is the front end interface to the Qibo labs.
+Qibo-client is the front end interface to quantum computing labs using Qibo.
 
 The main purpose of the project is to create a client tool written in python
 able to launch quantum computations through HTTP.
@@ -24,11 +24,11 @@ conlficts with previously installed packages.
    $ python -m venv ./env
    source activate ./env/bin/activate
 
-The TiiQ Provider package can be installed through pip:
+The qibo-client package can be installed through pip:
 
 .. code-block:: bash
 
-   pip install git+ssh://git@github.com/qiboteam/qibo-client.git
+   pip install qibo-client
 
 
 Tutorials
@@ -40,7 +40,7 @@ remote server.
 .. note::
    In order to run jobs on the remote cluster it is mandatory to own a validated
    account. Please, sign up to
-   `this link http://http://login.qrccluster.com:8010/`_ to obtain the needed
+   `this link https://www.qrccluster.com:8010/`_ to obtain the needed
    token to run computations on the cluster.
 
 The following example shows how to launch a computation on the TII cluster.

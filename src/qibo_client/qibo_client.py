@@ -13,7 +13,7 @@ import requests
 
 from .config import JobPostServerError, MalformedResponseError
 
-RESULTS_BASE_FOLDER = os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_tii_provider")
+RESULTS_BASE_FOLDER = os.environ.get("RESULTS_BASE_FOLDER", "/tmp/qibo_client")
 SECONDS_BETWEEN_CHECKS = os.environ.get("SECONDS_BETWEEN_CHECKS", 2)
 
 RESULTS_BASE_FOLDER = Path(RESULTS_BASE_FOLDER)
