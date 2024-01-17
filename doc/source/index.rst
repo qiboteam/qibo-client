@@ -40,7 +40,7 @@ remote server.
 .. note::
    In order to run jobs on the remote cluster it is mandatory to own a validated
    account. Please, sign up to
-   `this link https://www.qrccluster.com:8010/`_ to obtain the needed
+   `this link https://www.qrccluster.com`_ to obtain the needed
    token to run computations on the cluster.
 
 The following example shows how to launch a computation on the TII cluster.
