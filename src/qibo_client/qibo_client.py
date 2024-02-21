@@ -10,9 +10,9 @@ import numpy as np
 import qibo
 import requests
 
+from . import constants
 from .config import JobPostServerError, MalformedResponseError
 from .config_logging import logger
-from . import constants
 
 
 def wait_for_response_to_get_request(url: str) -> requests.models.Response:
