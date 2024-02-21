@@ -142,11 +142,13 @@ class Client:
         qibo_server_version = response.json()["qibo_version"]
         qibo_local_version = qibo.__version__
 
-        msg = (
-            "Local Qibo package version does not match the server one, please "
-            f"upgrade: {qibo_local_version} -> {qibo_server_version}"
-        )
-        assert qibo_local_version == qibo_server_version, msg
+        if qibo_local_version != qibo_server_version:
+            logger.warning(
+                "Local Qibo package version does not match the server one, please "
+                "upgrade: %s -> %s",
+                qibo_local_version,
+                qibo_server_version,
+            )
 
     def run_circuit(
         self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim"
