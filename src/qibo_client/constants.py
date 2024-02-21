@@ -1,6 +1,5 @@
-from pathlib import Path
 import os
-
+from pathlib import Path
 
 MINIMUM_QIBO_VERSION_ALLOWED = "0.2.4"
 
