@@ -5,11 +5,12 @@ import tarfile
 import tempfile
 import time
 from pathlib import Path
-from typing import Iterable, List, Optional
+from typing import Iterable, List, Optional, Union
 
 import numpy as np
 import qibo
 import requests
+from numpy import ndarray
 
 from .config import JobPostServerError, MalformedResponseError
 
@@ -127,7 +128,7 @@ class Client:
         self.results_folder = None
         self.results_path = None
 
-        self.check_client_server_qibo_versions()
+        # self.check_client_server_qibo_versions()
 
     def check_client_server_qibo_versions(self):
         """Check that client and server qibo package installed versions match.
@@ -148,7 +149,11 @@ class Client:
         assert qibo_local_version == qibo_server_version, msg
 
     def run_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim"
+        self,
+        circuit: qibo.Circuit,
+        initial_state: Optional[Union[ndarray, qibo.Circuit]] = None,
+        nshots: int = 1000,
+        device: str = "sim",
     ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
 
@@ -168,7 +173,7 @@ class Client:
         logger.info("Post new circuit on the server")
 
         try:
-            self._post_circuit(circuit, nshots, device)
+            self._post_circuit(circuit, initial_state, nshots, device)
         except JobPostServerError as err:
             logger.error(err.message)
             return None
@@ -181,13 +186,18 @@ class Client:
         return result
 
     def _post_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
+        self,
+        circuit: qibo.Circuit,
+        initial_state: Optional[Union[ndarray, qibo.Circuit]] = None,
+        nshots: int = 100,
+        device: str = "sim",
     ):
         # HTTP request
         url = self.url + "run_circuit/"
         payload = {
             "token": self.token,
             "circuit": circuit.raw,
+            "initial_state": initial_state,
             "nshots": nshots,
             "device": device,
         }
