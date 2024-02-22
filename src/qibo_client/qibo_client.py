@@ -128,7 +128,7 @@ class Client:
         self.results_folder = None
         self.results_path = None
 
-        # self.check_client_server_qibo_versions()
+        self.check_client_server_qibo_versions()
 
     def check_client_server_qibo_versions(self):
         """Check that client and server qibo package installed versions match.
