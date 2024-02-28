@@ -124,7 +124,8 @@ class Client:
         qibo_local_version = qibo.__version__
         msg = (
             "The qibo-client package requires an installed qibo package version"
-            f">=0.2.4, the local qibo version is {qibo_local_version}"
+            f">={constants.MINIMUM_QIBO_VERSION_ALLOWED}, the local qibo "
+            f"version is {qibo_local_version}"
         )
         assert qibo_local_version >= constants.MINIMUM_QIBO_VERSION_ALLOWED, msg
 
