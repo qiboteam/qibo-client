@@ -129,6 +129,18 @@ def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock
     )
 
 
+def test_check_client_server_qibo_versions_with_version_mismatch(
+    mock_qibo: Mock, mock_request: Mock
+):
+    mock_qibo.__version__ = "0.2.1"
+    with (
+        patch(f"{PKG}.constants.MINIMUM_QIBO_VERSION_ALLOWED", "0.1.9"),
+        patch(f"{PKG}.logger") as mock_logger,
+    ):
+        _get_tii_client()
+    mock_logger.warning.assert_called_once()
+
+
 def test_check_client_server_qibo_versions_with_low_local_version(mock_qibo: Mock):
     mock_qibo.__version__ = "0.0.1"
     with pytest.raises(AssertionError):
