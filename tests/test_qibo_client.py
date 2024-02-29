@@ -12,7 +12,7 @@ from qibo_client.config import JobPostServerError, MalformedResponseError
 
 PKG = "qibo_client.qibo_client"
 LOCAL_URL = "http://localhost:8000/"
-FAKE_QIBO_VERSION = "0.0.1"
+FAKE_QIBO_VERSION = "0.2.4"
 FAKE_PID = "123"
 ARCHIVE_NAME = "file.tar.gz"
 TIMEOUT = 1
@@ -30,7 +30,7 @@ def mock_qibo():
 @pytest.fixture(scope="module", autouse=True)
 def mock_timeout():
     """Ensure that all the requests are made on localhost"""
-    with patch(f"{PKG}.TIMEOUT", TIMEOUT) as _fixture:
+    with patch(f"{PKG}.constants.TIMEOUT", TIMEOUT) as _fixture:
         yield _fixture
 
 
@@ -38,7 +38,7 @@ def mock_timeout():
 def results_base_folder(tmp_path: Path):
     results_base_folder = tmp_path / "results"
     results_base_folder.mkdir()
-    with patch(f"{PKG}.RESULTS_BASE_FOLDER", results_base_folder):
+    with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
         yield results_base_folder
 
 
@@ -129,22 +129,22 @@ def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock
     )
 
 
-def test_check_client_server_qibo_versions_with_version_mismatch(mock_request: Mock):
-    remote_qibo_version = "0.2.2"
+def test_check_client_server_qibo_versions_with_version_mismatch(
+    mock_qibo: Mock, mock_request: Mock
+):
+    mock_qibo.__version__ = "0.2.1"
+    with (
+        patch(f"{PKG}.constants.MINIMUM_QIBO_VERSION_ALLOWED", "0.1.9"),
+        patch(f"{PKG}.logger") as mock_logger,
+    ):
+        _get_tii_client()
+    mock_logger.warning.assert_called_once()
 
-    def _new_side_effect(url, timeout):
-        return utils.MockedResponse(
-            status_code=200, json_data={"qibo_version": remote_qibo_version}
-        )
 
-    mock_request.get.side_effect = _new_side_effect
-
+def test_check_client_server_qibo_versions_with_low_local_version(mock_qibo: Mock):
+    mock_qibo.__version__ = "0.0.1"
     with pytest.raises(AssertionError):
         _get_tii_client()
-
-    mock_request.get.assert_called_once_with(
-        LOCAL_URL + "qibo_version/", timeout=TIMEOUT
-    )
 
 
 def test__post_circuit_with_invalid_token(mock_request: Mock):
@@ -194,7 +194,7 @@ def test_wait_for_response_to_get_request(mock_request: Mock):
 
     mock_request.get.side_effect = [keep_waiting] * failed_attempts + [job_done]
 
-    with patch(f"{PKG}.SECONDS_BETWEEN_CHECKS", 1e-4):
+    with patch(f"{PKG}.constants.SECONDS_BETWEEN_CHECKS", 1e-4):
         qibo_client.wait_for_response_to_get_request(url)
 
     assert mock_request.get.call_count == failed_attempts + 1

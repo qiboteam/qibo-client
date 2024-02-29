@@ -1,3 +1,5 @@
+import time
+
 import qibo
 
 from qibo_client import TII
@@ -14,6 +16,7 @@ client = TII(token)
 
 # run the circuit
 print(f"{'*'*20}\nPost first circuit")
+start = time.time()
 result = client.run_circuit(circuit, nshots=100, device="sim")
-
 print(result)
+print(f"Program done in {time.time() - start:.4f}s")

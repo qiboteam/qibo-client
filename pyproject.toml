@@ -21,7 +21,7 @@ packages = [{ include = "qibo_client", from = "src" }]
 
 [tool.poetry.dependencies]
 python = ">=3.9,<3.12"
-qibo = ">=0.2.2"
+qibo = ">=0.2.4"
 requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
