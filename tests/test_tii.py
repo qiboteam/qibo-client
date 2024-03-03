@@ -1,9 +1,19 @@
+import os
 from unittest.mock import Mock, patch
 
 from qibo_client import tii
 
 PKG = "qibo_client.tii"
 FAKE_TOKEN = "fakeToken"
+
+
+def test_base_url():
+    domain = os.environ["QRCCLUSTER_IP"] = "www.mydomain.ae"
+    assert domain in tii.base_url()
+    port = os.environ["QRCCLUSTER_PORT"] = "82493817"
+    assert f":{port}" in tii.base_url()
+    otherdomain = os.environ["QRCCLUSTER_IP"] = "www.myotherdomain.sg"
+    assert otherdomain in tii.base_url()
 
 
 def fake_url():
