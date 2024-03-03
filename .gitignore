@@ -165,3 +165,4 @@ examples/results/
 
 # configuration variables
 src/tii_qrc_provider/.env
+.devenv

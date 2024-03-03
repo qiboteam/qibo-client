@@ -25,6 +25,10 @@ qibo = ">=0.2.4"
 requests = "^2.31.0"
 
 [tool.poetry.group.dev.dependencies]
+ipython = "^7"
+pdbpp = "^0.10.3"
+
+[tool.poetry.group.test.dependencies]
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 pylint = "^3.0.3"
@@ -50,8 +54,4 @@ output-format = "colorized"
 [tool.pytest.ini_options]
 testpaths = ['tests/']
 filterwarnings = ['ignore::RuntimeWarning']
-addopts = [
-  '--cov=src/qibo_client',
-  '--cov-report=xml',
-  '--cov-report=html',
-]
+addopts = ['--cov=src/qibo_client', '--cov-report=xml', '--cov-report=html']
