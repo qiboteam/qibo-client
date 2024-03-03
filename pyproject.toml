@@ -24,7 +24,7 @@ python = ">=3.9,<3.12"
 qibo = ">=0.2.4"
 requests = "^2.31.0"
 
-[tool.poetry.group.dev.dependencies]
+[tool.poetry.group.test.dependencies]
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 pylint = "^3.0.3"
