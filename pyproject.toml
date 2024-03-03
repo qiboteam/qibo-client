@@ -24,6 +24,10 @@ python = ">=3.9,<3.12"
 qibo = ">=0.2.4"
 requests = "^2.31.0"
 
+[tool.poetry.group.dev.dependencies]
+ipython = "^7"
+pdbpp = "^0.10.3"
+
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
@@ -35,11 +39,6 @@ recommonmark = "^0.7.1"
 sphinx-copybutton = "^0.5.2"
 nbsphinx = "^0.9.3"
 furo = "^2023.9.10"
-
-
-[tool.poetry.group.dev.dependencies]
-ipython = "^7"
-pdbpp = "^0.10.3"
 
 [tool.poe.tasks]
 test = "pytest"
@@ -55,8 +54,4 @@ output-format = "colorized"
 [tool.pytest.ini_options]
 testpaths = ['tests/']
 filterwarnings = ['ignore::RuntimeWarning']
-addopts = [
-  '--cov=src/qibo_client',
-  '--cov-report=xml',
-  '--cov-report=html',
-]
+addopts = ['--cov=src/qibo_client', '--cov-report=xml', '--cov-report=html']
