@@ -2,9 +2,11 @@ import os
 
 from .qibo_client import Client
 
-QRCCLUSTER_IP = os.environ.get("QRCCLUSTER_IP", "www.qrccluster.com")
-QRCCLUSTER_PORT = os.environ.get("QRCCLUSTER_PORT", "80")
-BASE_URL = f"http://{QRCCLUSTER_IP}:{QRCCLUSTER_PORT}/"
+
+def base_url():
+    qrccluster_ip = os.environ.get("QRCCLUSTER_IP", "www.qrccluster.com")
+    qrccluster_port = os.environ.get("QRCCLUSTER_PORT", "80")
+    return f"http://{qrccluster_ip}:{qrccluster_port}/"
 
 
 def TII(token: str) -> Client:
@@ -12,8 +14,7 @@ def TII(token: str) -> Client:
 
     :param token: the authentication token associated to the webapp user
     :type token: str
-
     :return: the client instance connected to the TII server
     :rtype: Client
     """
-    return Client(BASE_URL, token)
+    return Client(base_url(), token)
