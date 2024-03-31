@@ -10,4 +10,4 @@ def TII(token: str) -> Client:
     :return: the client instance connected to the TII server
     :rtype: Client
     """
-    return Client("https://cloud.qibo.science", token)
+    return Client("https://cloud.qibo.science/", token)
