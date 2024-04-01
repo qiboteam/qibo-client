@@ -1,6 +1,9 @@
 from .qibo_client import Client
 
 
+BASE_URL= "https://cloud.qibo.science/"
+
+
 def TII(token: str) -> Client:
     """Instantiate a TII Client object.
 
@@ -10,4 +13,4 @@ def TII(token: str) -> Client:
     :return: the client instance connected to the TII server
     :rtype: Client
     """
-    return Client("https://cloud.qibo.science/", token)
+    return Client(BASE_URL, token)
