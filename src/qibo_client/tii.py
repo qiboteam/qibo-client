@@ -1,7 +1,6 @@
 from .qibo_client import Client
 
-
-BASE_URL= "https://cloud.qibo.science/"
+BASE_URL = "https://cloud.qibo.science/"
 
 
 def TII(token: str) -> Client:
