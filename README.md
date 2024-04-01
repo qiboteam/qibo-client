@@ -28,7 +28,7 @@ TiiQ remote server.
 
 :warning: Note: to run jobs on the remote cluster it is mandatory to own a
 validated account.
-Please, sign up to [this link](https://www.qrccluster.com) to
+Please, sign up to [this link](https://cloud.qibo.science) to
 obtain the needed token to run computations on the cluster.
 
 The following snippet provides a basic usage example.
