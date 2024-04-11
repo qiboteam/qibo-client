@@ -1,4 +1,3 @@
-import os
 from unittest.mock import Mock, patch
 
 from qibo_client import tii
