@@ -1,9 +1,11 @@
+import os
+
 from .qibo_client import Client
 
 
 def base_url():
-    qrccluster_ip = os.environ.get("QRCCLUSTER_IP", "www.qrccluster.com")
-    qrccluster_port = os.environ.get("QRCCLUSTER_PORT", "80")
+    qrccluster_ip = os.getenv("QRCCLUSTER_IP", "www.qrccluster.com")
+    qrccluster_port = os.getenv("QRCCLUSTER_PORT", "80")
     return f"http://{qrccluster_ip}:{qrccluster_port}/"
 
 
