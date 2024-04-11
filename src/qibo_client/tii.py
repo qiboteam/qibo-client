@@ -4,9 +4,9 @@ from .qibo_client import Client
 
 
 def base_url():
-    qrccluster_ip = os.getenv("QRCCLUSTER_IP", "www.qrccluster.com")
-    qrccluster_port = os.getenv("QRCCLUSTER_PORT", "80")
-    return f"http://{qrccluster_ip}:{qrccluster_port}/"
+    qrccluster_ip = os.getenv("QRCCLUSTER_IP", "cloud.qibo.science")
+    qrccluster_port = os.getenv("QRCCLUSTER_PORT", "443")
+    return f"https://{qrccluster_ip}:{qrccluster_port}/"
 
 
 def TII(token: str) -> Client:
