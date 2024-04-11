@@ -1,5 +1,3 @@
-import os
-
 from .qibo_client import Client
 
 
