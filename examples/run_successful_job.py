@@ -1,4 +1,5 @@
 import time
+from pathlib import Path
 
 import qibo
 
@@ -8,7 +9,8 @@ from qibo_client import TII
 circuit = qibo.models.QFT(5)
 
 # read the token from file
-with open("token.txt") as f:
+token_path = Path(__file__).parent / "token.txt"
+with open(token_path) as f:
     token = f.read()
 
 # authenticate to server through the client instance
