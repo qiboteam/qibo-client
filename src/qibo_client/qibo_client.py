@@ -179,7 +179,11 @@ class Client:
         return result
 
     def _post_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 100, device: str = "sim"
+        self,
+        circuit: qibo.Circuit,
+        nshots: int = 100,
+        device: str = "sim",
+        lab_location: str = "tii",
     ):
         # HTTP request
         url = self.url + "run_circuit/"
@@ -188,6 +192,7 @@ class Client:
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
+            "lab_location": lab_location,
         }
         response = requests.post(url, json=payload, timeout=constants.TIMEOUT)
 
