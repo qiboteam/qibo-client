@@ -47,5 +47,5 @@ token = "your-tii-qrc-token"
 client = qibo_client.TII(token)
 
 # run the circuit
-result = client.run_circuit(circuit, nshots=1000, dev="sim")
+result = client.run_circuit(circuit, nshots=1000, device="sim")
 ```
