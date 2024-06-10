@@ -144,7 +144,11 @@ class Client:
             )
 
     def run_circuit(
-        self, circuit: qibo.Circuit, nshots: int = 1000, device: str = "sim", wait_for_results: bool = True
+        self,
+        circuit: qibo.Circuit,
+        nshots: int = 1000,
+        device: str = "sim",
+        wait_for_results: bool = True,
     ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
 
@@ -177,7 +181,7 @@ class Client:
             logger.info(
                 "Check results availability for %s job in your reserved page at "
                 "`cloud.qibo.science`",
-                self.pid
+                self.pid,
             )
             return None
 
