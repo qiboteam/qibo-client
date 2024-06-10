@@ -183,6 +183,19 @@ def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
     assert return_value is None
 
 
+def test__run_circuit_without_waiting_for_results(mock_request: Mock):
+    def _new_side_effect(url, json, timeout):
+        json_data = {"pid": None, "message": "post job to queue failed"}
+        return utils.MockedResponse(status_code=200, json_data=json_data)
+
+    mock_request.post.side_effect = _new_side_effect
+
+    client = _get_tii_client()
+    return_value = client.run_circuit(utils.MockedCircuit(), wait_for_results=False)
+
+    assert return_value is None
+
+
 def test_wait_for_response_to_get_request(mock_request: Mock):
     failed_attempts = 3
     url = "http://example.url"
