@@ -2,7 +2,7 @@ from pathlib import Path
 
 import qibo
 
-from qibo_client import TII
+from qibo_client import Client
 
 # create the circuit you want to run
 circuit = qibo.models.QFT(11)
@@ -13,7 +13,7 @@ with open(token_path) as f:
     token = f.read()
 
 # authenticate to server through the client instance
-client = TII(token)
+client = Client(token)
 
 # run the circuit
 print(f"{'*'*20}\nPost first circuit")
