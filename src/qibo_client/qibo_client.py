@@ -98,17 +98,17 @@ def check_response_has_keys(response: requests.models.Response, keys: List[str])
 
 
 class Client:
-    """Class to manage the interaction with the QRC cluster."""
+    """Class to manage the interaction with the remote server."""
 
-    def __init__(self, url: str, token: str):
+    def __init__(self, token: str, url: str = "https://cloud.qibo.science/"):
         """
-        :param url: the server address
-        :type url: str
         :param token: the authentication token associated to the webapp user
         :type token: str
+        :param url: the server address
+        :type url: str
         """
-        self.url = url
         self.token = token
+        self.url = url
 
         self.pid = None
         self.results_folder = None
