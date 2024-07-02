@@ -135,7 +135,7 @@ class Client:
         check_response_has_keys(response, ["qibo_version"])
         qibo_server_version = response.json()["qibo_version"]
 
-        if qibo_local_version != qibo_server_version:
+        if qibo_local_version < qibo_server_version:
             logger.warning(
                 "Local Qibo package version does not match the server one, please "
                 "upgrade: %s -> %s",
@@ -180,7 +180,7 @@ class Client:
         if not wait_for_results:
             logger.info(
                 "Check results availability for %s job in your reserved page at "
-                "`cloud.qibo.science`",
+                "https://cloud.qibo.science",
                 self.pid,
             )
             return None
