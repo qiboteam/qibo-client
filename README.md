@@ -23,8 +23,7 @@ pip install qibo-client
 
 ## Quick start
 
-Once installed, the provider allows to run quantum circuit computations on the
-TiiQ remote server.
+Once installed, the provider allows to run quantum circuit computations on remote labs using Qibo.
 
 :warning: Note: to run jobs on the remote cluster it is mandatory to own a
 validated account.
@@ -32,7 +31,7 @@ Please, sign up to [this link](https://cloud.qibo.science) to
 obtain the needed token to run computations on the cluster.
 
 The following snippet provides a basic usage example.
-Replace the `your-tii-qrc-token` string with your user token received during the
+Replace the `your-token` string with your user token received during the
 registration process.
 
 ```python
@@ -43,8 +42,8 @@ import qibo_client
 circuit = qibo.models.QFT(5)
 
 # authenticate to server through the client instance
-token = "your-tii-qrc-token"
-client = qibo_client.TII(token)
+token = "your-token"
+client = qibo_client.Client(token)
 
 # run the circuit
 result = client.run_circuit(circuit, nshots=1000, device="sim")

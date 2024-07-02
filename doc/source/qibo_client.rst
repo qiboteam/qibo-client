@@ -20,14 +20,6 @@ qibo\_client.qibo\_client module
    :undoc-members:
    :show-inheritance:
 
-qibo\_client.tii module
------------------------
-
-.. automodule:: qibo_client.tii
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
 Module contents
 ---------------
 

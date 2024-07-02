@@ -49,10 +49,10 @@ receive after registration.
 
 .. code-block:: python
 
-   >>> from qibo_client import TII
+   >>> from qibo_client import Client
    >>> import qibo
    >>> circuit = qibo.models.QFT(5)
-   >>> client = TII("your qibo token")
+   >>> client = Client("your qibo token")
    >>> result = client.run_circuit(circuit, nshots=100, device="sim")
    >>> print(result)
 
