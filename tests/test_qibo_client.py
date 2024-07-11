@@ -118,12 +118,12 @@ def test_check_response_has_missing_keys():
         qibo_client.check_response_has_keys(mock_response, keys)
 
 
-def _get_tii_client():
-    return qibo_client.Client(LOCAL_URL, "valid_token")
+def _get_local_client():
+    return qibo_client.Client("valid_token", LOCAL_URL)
 
 
 def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
-    _get_tii_client()
+    _get_local_client()
     mock_request.get.assert_called_once_with(
         LOCAL_URL + "qibo_version/", timeout=TIMEOUT
     )
@@ -137,14 +137,14 @@ def test_check_client_server_qibo_versions_with_version_mismatch(
         patch(f"{PKG}.constants.MINIMUM_QIBO_VERSION_ALLOWED", "0.1.9"),
         patch(f"{PKG}.logger") as mock_logger,
     ):
-        _get_tii_client()
+        _get_local_client()
     mock_logger.warning.assert_called_once()
 
 
 def test_check_client_server_qibo_versions_with_low_local_version(mock_qibo: Mock):
     mock_qibo.__version__ = "0.0.1"
     with pytest.raises(AssertionError):
-        _get_tii_client()
+        _get_local_client()
 
 
 def test__post_circuit_with_invalid_token(mock_request: Mock):
@@ -153,7 +153,7 @@ def test__post_circuit_with_invalid_token(mock_request: Mock):
 
     mock_request.post.side_effect = _new_side_effect
 
-    client = _get_tii_client()
+    client = _get_local_client()
     with pytest.raises(HTTPError):
         client._post_circuit(utils.MockedCircuit())
 
@@ -165,7 +165,7 @@ def test__post_circuit_not_successful(mock_request: Mock):
 
     mock_request.post.side_effect = _new_side_effect
 
-    client = _get_tii_client()
+    client = _get_local_client()
     with pytest.raises(JobPostServerError):
         client._post_circuit(utils.MockedCircuit())
 
@@ -177,7 +177,7 @@ def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
 
     mock_request.post.side_effect = _new_side_effect
 
-    client = _get_tii_client()
+    client = _get_local_client()
     return_value = client.run_circuit(utils.MockedCircuit())
 
     assert return_value is None
@@ -275,7 +275,7 @@ def test__get_result_handles_tarfile_readerror(mock_request, results_base_folder
     file_path = results_base_folder / "file.txt"
     file_path.write_text("test content")
 
-    client = _get_tii_client()
+    client = _get_local_client()
     result = client.run_circuit(utils.MockedCircuit())
 
     assert result is None
@@ -312,7 +312,7 @@ def test__save_and_unpack_stream_response_to_folder(
 def test__get_result(mock_qibo, mock_request, mock_tempfile, results_base_folder):
     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
 
-    client = _get_tii_client()
+    client = _get_local_client()
     client.pid = FAKE_PID
     result = client._get_result()
 
@@ -325,7 +325,7 @@ def test__get_result_with_job_status_error(
 ):
     mock_request.get.side_effect = _get_request_side_effect(job_status="error")
 
-    client = _get_tii_client()
+    client = _get_local_client()
     client.pid = FAKE_PID
     result = client._get_result()
 
@@ -336,7 +336,7 @@ def test__get_result_with_job_status_error(
 def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
 
-    client = _get_tii_client()
+    client = _get_local_client()
     client.pid = FAKE_PID
     result = client.run_circuit(utils.MockedCircuit())
 
