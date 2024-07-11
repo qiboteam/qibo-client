@@ -148,7 +148,7 @@ class Client:
         circuit: qibo.Circuit,
         nshots: int = 1000,
         device: str = "sim",
-        wait_for_results: bool = True,
+        wait_for_results: bool = False,
     ) -> Optional[np.ndarray]:
         """Run circuit on the cluster.
 
