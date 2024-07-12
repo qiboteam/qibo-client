@@ -8,7 +8,7 @@ import utils_test_qibo_client as utils
 from requests.exceptions import HTTPError
 
 from qibo_client import qibo_client
-from qibo_client.config import JobPostServerError, MalformedResponseError
+from qibo_client.exceptions import JobPostServerError, MalformedResponseError
 
 PKG = "qibo_client.qibo_client"
 LOCAL_URL = "http://localhost:8000/"
