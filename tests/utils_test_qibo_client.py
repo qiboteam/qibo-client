@@ -131,6 +131,3 @@ def get_fake_tmp_file_class(file_path: Path):
             self.opened_file.close()
 
     return TmpFile
-
-
-

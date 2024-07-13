@@ -202,7 +202,7 @@ class QiboJob:
                 self.results_folder.as_posix(),
             )
             return result
-    
+
         if job_status == QiboJobStatus.ERROR:
             logger.info(
                 "Job exited with error, check logs in %s folder",

@@ -1,6 +1,5 @@
 """The module implementing the TIIProvider class."""
 
-
 import qibo
 
 from . import constants

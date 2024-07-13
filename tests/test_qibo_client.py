@@ -1,5 +1,3 @@
-import tarfile
-from pathlib import Path
 from typing import Callable
 from unittest.mock import Mock, patch
 
