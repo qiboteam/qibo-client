@@ -1,6 +1,5 @@
 """The module implementing the TIIProvider class."""
 
-import typing as T
 
 import qibo
 
