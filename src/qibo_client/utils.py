@@ -5,18 +5,18 @@ import requests
 from .exceptions import JobApiError, MalformedResponseError
 
 
-def check_json_response_has_keys(response_dict: T.Dict, keys: T.List[str]):
+def check_json_response_has_keys(response_json: T.Dict, keys: T.List[str]):
     """Check that the response body contains certain keys.
 
-    :param response_dict: the server json response
-    :type response_dict: Dict
+    :param response_json: the server json response
+    :type response_json: Dict
     :param keys: the keys to be checked in the response body
     :type keys: List[str]
 
     :raises MalformedResponseError:
         if the server response does not contain all the expected keys.
     """
-    response_keys = set(response_dict.keys())
+    response_keys = set(response_json.keys())
     expected_keys = set(keys)
     missing_keys = expected_keys.difference(response_keys)
 
@@ -46,17 +46,6 @@ def _make_request(request_fn, keys_to_check, *args, **kwargs) -> requests.Respon
 class QiboApiRequest:
 
     @staticmethod
-    def post(
-        endpoint: str,
-        json: T.Dict | None = None,
-        timeout: float | None = None,
-        keys_to_check: T.List[str] | None = None,
-    ) -> requests.Response:
-        return _make_request(
-            requests.post, keys_to_check, endpoint, json=json, timeout=timeout
-        )
-
-    @staticmethod
     def get(
         endpoint: str,
         params: T.Dict | None = None,
@@ -65,4 +54,15 @@ class QiboApiRequest:
     ) -> requests.Response:
         return _make_request(
             requests.get, keys_to_check, endpoint, params=params, timeout=timeout
+        )
+
+    @staticmethod
+    def post(
+        endpoint: str,
+        json: T.Dict | None = None,
+        timeout: float | None = None,
+        keys_to_check: T.List[str] | None = None,
+    ) -> requests.Response:
+        return _make_request(
+            requests.post, keys_to_check, endpoint, json=json, timeout=timeout
         )
