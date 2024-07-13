@@ -133,5 +133,4 @@ def get_fake_tmp_file_class(file_path: Path):
     return TmpFile
 
 
-def raise_tarfile_readerror(*args):
-    raise tarfile.ReadError()
+

@@ -29,7 +29,7 @@ class QiboJobStatus(Enum):
 
 def wait_for_response_to_get_request(
     url: str, seconds_between_checks: T.Optional[int] = None, verbose: bool = False
-) -> requests.Response:
+) -> T.Tuple[requests.Response, QiboJobStatus]:
     """Wait until the server completes the computation and return the response.
 
     :param url: the endpoint to make the request
@@ -37,6 +37,8 @@ def wait_for_response_to_get_request(
 
     :return: the response of the get request
     :rtype: requests.Response
+    :return: the completed job response status
+    :rtype: QiboJobStatus
     """
     if seconds_between_checks is None:
         seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
@@ -47,7 +49,7 @@ def wait_for_response_to_get_request(
         response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
         job_status = convert_str_to_job_status(response.headers["Job-Status"])
         if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
-            return response
+            return response, job_status
         time.sleep(seconds_between_checks)
 
 
@@ -120,8 +122,8 @@ class QiboJob:
         self.pid = pid
         self.circuit = circuit
         self.nshots = nshots
-        self.device = device
         self.lab_location = lab_location
+        self.device = device
 
         self._status = None
 
@@ -178,7 +180,7 @@ class QiboJob:
         """
         # @TODO: here we can use custom logger levels instead of if statement
         url = self.base_url + f"/job/result/{self.pid}/"
-        response = wait_for_response_to_get_request(url, wait, verbose)
+        response, job_status = wait_for_response_to_get_request(url, wait, verbose)
 
         # create the job results folder
         self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
@@ -200,8 +202,8 @@ class QiboJob:
                 self.results_folder.as_posix(),
             )
             return result
-
-        if response.headers["Job-Status"].lower() == "error":
+    
+        if job_status == QiboJobStatus.ERROR:
             logger.info(
                 "Job exited with error, check logs in %s folder",
                 self.results_folder.as_posix(),
@@ -209,5 +211,6 @@ class QiboJob:
             return result
 
         self.results_path = self.results_folder / "results.npy"
+        result.success = True
         result.result = qibo.result.load_result(self.results_path)
         return result

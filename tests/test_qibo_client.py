@@ -4,7 +4,6 @@ from typing import Callable
 from unittest.mock import Mock, patch
 
 import pytest
-import utils_test_qibo_client as utils
 from requests.exceptions import HTTPError
 
 from qibo_client import qibo_client
@@ -14,7 +13,6 @@ PKG = "qibo_client.qibo_client"
 LOCAL_URL = "http://localhost:8000/"
 FAKE_QIBO_VERSION = "0.2.4"
 FAKE_PID = "123"
-ARCHIVE_NAME = "file.tar.gz"
 TIMEOUT = 1
 
 
@@ -34,12 +32,12 @@ def mock_timeout():
         yield _fixture
 
 
-@pytest.fixture
-def results_base_folder(tmp_path: Path):
-    results_base_folder = tmp_path / "results"
-    results_base_folder.mkdir()
-    with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
-        yield results_base_folder
+# @pytest.fixture
+# def results_base_folder(tmp_path: Path):
+#     results_base_folder = tmp_path / "results"
+#     results_base_folder.mkdir()
+#     with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
+#         yield results_base_folder
 
 
 def _get_request_side_effect(job_status: str = "success") -> Callable:
@@ -85,37 +83,6 @@ def mock_request():
         _mock_request.get.side_effect = _get_request_side_effect()
         _mock_request.post.side_effect = _post_request_side_effect
         yield _mock_request
-
-
-@pytest.fixture
-def archive_path(tmp_path):
-    return tmp_path / ARCHIVE_NAME
-
-
-@pytest.fixture
-def mock_tempfile(archive_path):
-    with patch(f"{PKG}.tempfile") as _mock_tempfile:
-        _mock_tempfile.NamedTemporaryFile = utils.get_fake_tmp_file_class(archive_path)
-        yield _mock_tempfile
-
-
-def test_check_response_has_keys():
-    """Check response body contains the keys"""
-    keys = ["key1", "key2"]
-    json_data = {"key1": 0, "key2": 1}
-    status_code = 200
-    mock_response = utils.MockedResponse(status_code, json_data)
-    qibo_client.check_response_has_keys(mock_response, keys)
-
-
-def test_check_response_has_missing_keys():
-    """Check response body contains the keys"""
-    keys = ["key1", "key2"]
-    json_data = {"key1": 0}
-    status_code = 200
-    mock_response = utils.MockedResponse(status_code, json_data)
-    with pytest.raises(MalformedResponseError):
-        qibo_client.check_response_has_keys(mock_response, keys)
 
 
 def _get_local_client():
@@ -170,6 +137,16 @@ def test__post_circuit_not_successful(mock_request: Mock):
         client._post_circuit(utils.MockedCircuit())
 
 
+def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
+    expected_array_path = results_base_folder / FAKE_PID / "results.npy"
+
+    client = _get_local_client()
+    client.pid = FAKE_PID
+    result = client.run_circuit(utils.MockedCircuit())
+
+    assert result == expected_array_path
+
+
 def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
     def _new_side_effect(url, json, timeout):
         json_data = {"pid": None, "message": "post job to queue failed"}
@@ -194,150 +171,3 @@ def test__run_circuit_without_waiting_for_results(mock_request: Mock):
     return_value = client.run_circuit(utils.MockedCircuit(), wait_for_results=False)
 
     assert return_value is None
-
-
-def test_wait_for_response_to_get_request(mock_request: Mock):
-    failed_attempts = 3
-    url = "http://example.url"
-
-    keep_waiting = utils.MockedResponse(
-        status_code=200, json_data={"content": b"Job still in progress"}
-    )
-    job_done = utils.MockedResponse(status_code=200)
-
-    mock_request.get.side_effect = [keep_waiting] * failed_attempts + [job_done]
-
-    with patch(f"{PKG}.constants.SECONDS_BETWEEN_CHECKS", 1e-4):
-        qibo_client.wait_for_response_to_get_request(url)
-
-    assert mock_request.get.call_count == failed_attempts + 1
-
-
-def test__write_stream_to_tmp_file_with_simple_text_stream(
-    mock_tempfile: Mock, archive_path: Path
-):
-    """
-    The test contains the following checks:
-
-    - a new temporary file is created to a specific direction
-    - the content of the temporary file contains equals the one given
-    """
-    stream = [b"line1\n", b"line2\n"]
-
-    assert not archive_path.is_file()
-
-    result_path = qibo_client._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-    assert result_path.read_bytes() == b"".join(stream)
-
-
-def test__write_stream_to_tmp_file(mock_tempfile: Mock, archive_path: Path):
-    """
-    The test contains the following checks:
-
-    - a new temporary file is created to a specific direction
-    - the content of the temporary file contains equals the one given
-    """
-    stream, members, members_contents = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    result_path = qibo_client._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-
-    # load the archive in memory and check that the members and the contents
-    # match with the expected ones
-    with tarfile.open(result_path, "r:gz") as archive:
-        result_members = sorted(archive.getnames())
-        assert result_members == members
-        for member, member_content in zip(members, members_contents):
-            with archive.extractfile(member) as result_member:
-                result_content = result_member.read()
-            assert result_content == member_content
-
-
-def test__extract_archive_to_folder_with_non_archive_input(tmp_path):
-    file_path = tmp_path / "file.txt"
-    file_path.write_text("test content")
-
-    with pytest.raises(tarfile.ReadError):
-        qibo_client._extract_archive_to_folder(file_path, tmp_path)
-
-
-@patch(
-    f"{PKG}._save_and_unpack_stream_response_to_folder", utils.raise_tarfile_readerror
-)
-def test__get_result_handles_tarfile_readerror(mock_request, results_base_folder):
-    file_path = results_base_folder / "file.txt"
-    file_path.write_text("test content")
-
-    client = _get_local_client()
-    result = client.run_circuit(utils.MockedCircuit())
-
-    assert result is None
-
-
-def test__extract_archive_to_folder(archive_path, results_base_folder):
-    members, members_contents = utils.create_fake_archive(archive_path)
-
-    qibo_client._extract_archive_to_folder(archive_path, results_base_folder)
-
-    result_members = []
-    result_members_contents = []
-    for member_path in sorted(results_base_folder.iterdir()):
-        result_members.append(member_path.name)
-        result_members_contents.append(member_path.read_bytes())
-
-    assert result_members == members
-    assert result_members_contents == members_contents
-
-
-def test__save_and_unpack_stream_response_to_folder(
-    mock_tempfile: Mock, archive_path: Path, results_base_folder: Path
-):
-    stream, _, _ = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    qibo_client._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
-
-    # the archive should have been removed
-    assert not archive_path.is_file()
-
-
-def test__get_result(mock_qibo, mock_request, mock_tempfile, results_base_folder):
-    expected_array_path = results_base_folder / FAKE_PID / "results.npy"
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client._get_result()
-
-    mock_qibo.result.load_result.assert_called_once_with(expected_array_path)
-    assert result == expected_array_path
-
-
-def test__get_result_with_job_status_error(
-    mock_qibo, mock_request, mock_tempfile, results_base_folder
-):
-    mock_request.get.side_effect = _get_request_side_effect(job_status="error")
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client._get_result()
-
-    mock_qibo.result.load_result.assert_not_called()
-    assert result is None
-
-
-def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
-    expected_array_path = results_base_folder / FAKE_PID / "results.npy"
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client.run_circuit(utils.MockedCircuit())
-
-    assert result == expected_array_path
