@@ -32,6 +32,7 @@ pdbpp = "^0.10.3"
 pytest = "^7.4.3"
 pytest-cov = "^4.1.0"
 pylint = "^3.0.3"
+responses = "^0.25.3"
 
 [tool.poetry.group.docs.dependencies]
 sphinx = "^7.2.6"
