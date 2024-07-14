@@ -48,9 +48,9 @@ class QiboApiRequest:
     @staticmethod
     def get(
         endpoint: str,
-        params: T.Dict | None = None,
-        timeout: float | None = None,
-        keys_to_check: T.List[str] | None = None,
+        params: T.Optional[T.Dict] = None,
+        timeout: T.Optional[float] = None,
+        keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
         return _make_request(
             requests.get, keys_to_check, endpoint, params=params, timeout=timeout
@@ -59,9 +59,9 @@ class QiboApiRequest:
     @staticmethod
     def post(
         endpoint: str,
-        json: T.Dict | None = None,
-        timeout: float | None = None,
-        keys_to_check: T.List[str] | None = None,
+        json: T.Optional[T.Dict] = None,
+        timeout: T.Optional[float] = None,
+        keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
         return _make_request(
             requests.post, keys_to_check, endpoint, json=json, timeout=timeout
