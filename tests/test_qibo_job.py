@@ -40,7 +40,7 @@ def test_wait_for_response_to_get_request(monkeypatch, status, expected_job_stat
     monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
 
     failed_attempts = 3
-    endpoint = "http://fake.endpoint.com/job/result/"
+    endpoint = FAKE_URL + "/job/result/"
     failed_headers = {"Job-Status": "in_progress"}
     response_json = {"detail": "output"}
     for _ in range(failed_attempts):
@@ -199,7 +199,7 @@ class TestQiboJob:
     @pytest.fixture
     @responses.activate
     def refresh_job(self):
-        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}"
+        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
         response_json = {
             "circuit": FAKE_CIRCUIT,
             "nshots": FAKE_NSHOTS,
@@ -232,7 +232,7 @@ class TestQiboJob:
     def test_refresh_with_invalid_pid(self):
         invalid_pid = "invalidPid"
         self.obj.pid = invalid_pid
-        endpoint = FAKE_URL + f"/job/info/{invalid_pid}"
+        endpoint = FAKE_URL + f"/job/info/{invalid_pid}/"
         response_json = {"detail": f"Invalid job pid, got {invalid_pid}"}
         responses.add(responses.GET, endpoint, status=404, json=response_json)
 
@@ -253,7 +253,7 @@ class TestQiboJob:
     )
     @responses.activate
     def test_status(self, status, expected_result):
-        endpoint = FAKE_URL + f"/job/status/{FAKE_PID}"
+        endpoint = FAKE_URL + f"/job/status/{FAKE_PID}/"
         response_json = {"status": status}
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
