@@ -85,7 +85,7 @@ class Client:
         logger.info(
             "Check results availability for %s job in your reserved page at %s",
             self.pid,
-            constants.BASE_URL,
+            self.base_url,
         )
         return job
 
@@ -102,18 +102,17 @@ class Client:
             "token": self.token,
             "circuit": circuit.raw,
             "nshots": nshots,
-            "device": device,
             "lab_location": lab_location,
+            "device": device,
         }
         response = QiboApiRequest.post(
             url,
             json=payload,
             timeout=constants.TIMEOUT,
         )
-        breakpoint()
         result = response.json()
 
-        self.pid = result["pid"]
+        self.pid = result.get("pid")
 
         if self.pid is None:
             raise JobPostServerError(result["detail"])

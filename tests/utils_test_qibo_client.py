@@ -1,62 +1,7 @@
 import io
 import tarfile
 from pathlib import Path
-from typing import Dict, Generator, List, Optional, Tuple
-
-from requests.exceptions import HTTPError
-
-
-class MockedResponse:
-    """A fake representation of a `requests.response` object"""
-
-    def __init__(self, status_code: int, json_data: Optional[Dict] = None):
-        self.status_code = status_code
-        self._json = json_data or {}
-        self.headers = self._json.get("headers")
-        self.content = self._json.get("content")
-        self._iter_content = self._json.get("iter_content")
-
-    def json(self) -> Dict:
-        return self._json
-
-    def iter_content(self):
-        return self._iter_content
-
-    def raise_for_status(self):
-        if 400 <= self.status_code < 500:
-            http_error_msg = f"{self.status_code} Client Error"
-
-        elif 500 <= self.status_code < 600:
-            http_error_msg = f"{self.status_code} Server Error"
-        else:
-            http_error_msg = ""
-
-        if http_error_msg:
-            raise HTTPError(http_error_msg)
-
-
-class MockedCircuit:
-    """A fake representation of a Qibo quantum circuit"""
-
-    def __init__(self):
-        self.raw = "raw circuit representation"
-
-
-class FakeStreamingHttpResponse:
-    """A fake representation of Django StreamingHttpResponse"""
-
-    def __init__(self, tar_gz_bytes):
-        self.tar_gz_bytes = tar_gz_bytes
-
-    def __iter__(self):
-        # Create a tarfile object from the bytes stream
-        tar_stream = io.BytesIO(self.tar_gz_bytes)
-        with tarfile.open(fileobj=tar_stream, mode="r:gz") as tar:
-            for tar_info in tar:
-                # Yield each byte of the file's content
-                with tar.extractfile(tar_info) as file:
-                    while byte := file.read(1):
-                        yield byte
+from typing import Generator, List, Tuple
 
 
 def _generic_create_archive_(get_file_context_manager_fn):
@@ -116,18 +61,3 @@ class DataStreamer:
 def get_in_memory_fake_archive_stream():
     archive_as_bytes, members, members_contents = create_in_memory_fake_archive()
     return DataStreamer(archive_as_bytes), members, members_contents
-
-
-def get_fake_tmp_file_class(file_path: Path):
-    class TmpFile:
-        def __init__(self, *args, **kwargs):
-            pass
-
-        def __enter__(self):
-            self.opened_file = open(file_path, "wb")
-            return self.opened_file
-
-        def __exit__(self, exc_type, exc_value, exc_tb):
-            self.opened_file.close()
-
-    return TmpFile
