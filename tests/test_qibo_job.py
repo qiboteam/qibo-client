@@ -381,4 +381,4 @@ class TestQiboJob:
         )
         result = self.obj.result()
         assert result == FULL_RESULT
-        assert str(result.result) == FAKE_RESULT
+        assert str(result) == FAKE_RESULT
