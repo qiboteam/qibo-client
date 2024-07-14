@@ -1,5 +1,4 @@
 import logging
-import typing as T
 
 import pytest
 import responses
