@@ -42,13 +42,19 @@ def wait_for_response_to_get_request(
     """
     if seconds_between_checks is None:
         seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
+    if not verbose:
+        logger.info("Please wait until your job is completed...")
 
     while True:
-        if verbose:
-            logger.info("Check results every %d seconds ...", seconds_between_checks)
         response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
         job_status = convert_str_to_job_status(response.headers["Job-Status"])
+        if verbose and job_status == QiboJobStatus.QUEUED:
+            logger.info("Job QUEUEING")
+        if verbose and job_status == QiboJobStatus.RUNNING:
+            logger.info("Job RUNNING")
         if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
+            if verbose:
+                logger.info("Job COMPLETED")
             return response, job_status
         time.sleep(seconds_between_checks)
 
