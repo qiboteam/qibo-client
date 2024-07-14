@@ -38,12 +38,11 @@ class TestQiboClient:
     @pytest.fixture
     def pass_version_check(self, monkeypatch):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
-        monkeypatch.setattr(
-            f"{MOD}.constants.MINIMUM_QIBO_VERSION_ALLOWED",
-            FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
-        )
         endpoint = FAKE_URL + "/qibo_version/"
-        response_json = {"qibo_version": FAKE_QIBO_VERSION}
+        response_json = {
+            "server_qibo_version": FAKE_QIBO_VERSION,
+            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+        }
         with responses.RequestsMock() as rsps:
             rsps.get(endpoint, status=200, json=response_json)
             yield rsps
@@ -56,14 +55,18 @@ class TestQiboClient:
         assert self.obj.results_folder is None
         assert self.obj.results_path is None
 
+    @responses.activate
     def test_check_client_server_qibo_versions_raises_assertion_error(
         self, monkeypatch
     ):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
-        monkeypatch.setattr(
-            f"{MOD}.constants.MINIMUM_QIBO_VERSION_ALLOWED",
-            "0.2.8",
-        )
+
+        endpoint = FAKE_URL + "/qibo_version/"
+        response_json = {
+            "server_qibo_version": "0.2.9",
+            "minimum_client_qibo_version": "0.2.8",
+        }
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         with pytest.raises(AssertionError) as err:
             self.obj.check_client_server_qibo_versions()
@@ -93,12 +96,12 @@ class TestQiboClient:
         """
         caplog.set_level(logging.WARNING)
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
-        monkeypatch.setattr(
-            f"{MOD}.constants.MINIMUM_QIBO_VERSION_ALLOWED",
-            FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
-        )
+
         endpoint = FAKE_URL + "/qibo_version/"
-        response_json = {"qibo_version": "0.2.9"}
+        response_json = {
+            "server_qibo_version": "0.2.9",
+            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+        }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
         self.obj.check_client_server_qibo_versions()
 

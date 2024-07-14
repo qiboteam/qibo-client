@@ -31,25 +31,29 @@ class Client:
 
         Raise assertion error if the two versions are not the same.
         """
-        qibo_local_version = qibo.__version__
-        msg = (
-            "The qibo-client package requires an installed qibo package version"
-            f">={constants.MINIMUM_QIBO_VERSION_ALLOWED}, the local qibo "
-            f"version is {qibo_local_version}"
-        )
-        assert qibo_local_version >= constants.MINIMUM_QIBO_VERSION_ALLOWED, msg
-
         url = self.base_url + "/qibo_version/"
         response = QiboApiRequest.get(
-            url, timeout=constants.TIMEOUT, keys_to_check=["qibo_version"]
+            url,
+            timeout=constants.TIMEOUT,
+            keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
         )
-        qibo_server_version = response.json()["qibo_version"]
 
-        if qibo_local_version < qibo_server_version:
+        qibo_server_version = response.json()["server_qibo_version"]
+        qibo_minimum_client_version = response.json()["minimum_client_qibo_version"]
+
+        qibo_client_version = qibo.__version__
+        msg = (
+            "The qibo-client package requires an installed qibo package version"
+            f">={qibo_minimum_client_version}, the local qibo "
+            f"version is {qibo_client_version}"
+        )
+        assert qibo_client_version >= qibo_minimum_client_version, msg
+
+        if qibo_client_version < qibo_server_version:
             logger.warning(
                 "Local Qibo package version does not match the server one, please "
                 "upgrade: %s -> %s",
-                qibo_local_version,
+                qibo_client_version,
                 qibo_server_version,
             )
 
