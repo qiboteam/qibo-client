@@ -253,7 +253,7 @@ class TestQiboJob:
     )
     @responses.activate
     def test_status(self, status, expected_result):
-        endpoint = FAKE_URL + f"/job/status/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
         response_json = {"status": status}
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 

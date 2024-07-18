@@ -157,7 +157,7 @@ class QiboJob:
         self._status = convert_str_to_job_status(info["status"])
 
     def status(self) -> QiboJobStatus:
-        url = self.base_url + f"/job/status/{self.pid}/"
+        url = self.base_url + f"/job/info/{self.pid}/"
         response = requests.get(url)
         response.raise_for_status()
         status = response.json()["status"]
