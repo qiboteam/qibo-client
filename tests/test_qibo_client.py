@@ -2,12 +2,14 @@ import logging
 
 import pytest
 import responses
+import tabulate
 
-from qibo_client import QiboJob, exceptions, qibo_client
+from qibo_client import exceptions, qibo_client
 
 MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com/api"
 FAKE_TOKEN = "fakeToken"
+FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
 FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.2.4"
 FAKE_PID = "123"
@@ -163,3 +165,40 @@ class TestQiboClient:
         ]
         for expected_message in expected_messages:
             assert expected_message in caplog.messages
+
+    @responses.activate
+    def test_print_quota_info(self, caplog):
+        caplog.set_level(logging.INFO)
+
+        endpoint = FAKE_URL + "/accounts/info/quotas/"
+        response_json = {
+            "disk_quota": {
+                "user": {"email": FAKE_USER_EMAIL},
+                "kbs_left": 5,
+                "kbs_max": 10,
+            },
+            "time_quotas": [
+                {
+                    "partition": {
+                        "lab_location": FAKE_LAB_LOCATION,
+                        "device": FAKE_DEVICE,
+                    },
+                    "seconds_left": 1.5,
+                }
+            ],
+        }
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
+
+        rows = [(FAKE_LAB_LOCATION, FAKE_DEVICE, 1.5)]
+        expected_table = tabulate.tabulate(
+            rows, headers=["Lab", "Partitions", "Space Left [KBs]"]
+        )
+        expected_message = (
+            f"User: {FAKE_USER_EMAIL}\n"
+            "Disk quota left: 5.00 / 10.00\n"
+            f"{expected_table}"
+        )
+
+        self.obj.print_quota_info()
+
+        assert caplog.messages == [expected_message]
