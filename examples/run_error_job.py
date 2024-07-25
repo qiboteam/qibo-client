@@ -5,7 +5,7 @@ import qibo
 from qibo_client import Client
 
 # create the circuit you want to run
-circuit = qibo.models.QFT(11)
+circuit = qibo.models.QFT(26)
 
 # read the token from file
 token_path = Path(__file__).parent / "token.txt"
@@ -16,6 +16,7 @@ client = Client(token)
 
 # run the circuit
 print(f"{'*'*20}\nPost first circuit")
-result = client.run_circuit(circuit, nshots=100, device="sim")
-
-print(result)
+start = time.time()
+job = client.run_circuit(circuit, nshots=100, device="sim")
+print(job.result())
+print(f"Program done in {time.time() - start:.4f}s")
