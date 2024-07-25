@@ -6,13 +6,11 @@ from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
-import numpy as np
 import qibo
 import requests
 
 from . import constants
 from .config_logging import logger
-from .exceptions import JobApiError
 from .utils import QiboApiRequest
 
 
@@ -139,11 +137,11 @@ class QiboJob:
         This method does not query the results from server.
         """
         url = self.base_url + f"/job/info/{self.pid}/"
-        response = requests.get(url)
-        try:
-            response.raise_for_status()
-        except requests.exceptions.HTTPError:
-            raise JobApiError(response.status_code, response.json()["detail"])
+        response = response = QiboApiRequest.get(
+            url,
+            timeout=constants.TIMEOUT,
+            keys_to_check=["circuit", "nshots", "device", "status"],
+        )
 
         info = response.json()
         if info is not None:
@@ -158,8 +156,9 @@ class QiboJob:
 
     def status(self) -> QiboJobStatus:
         url = self.base_url + f"/job/info/{self.pid}/"
-        response = requests.get(url)
-        response.raise_for_status()
+        response = response = QiboApiRequest.get(
+            url, timeout=constants.TIMEOUT, keys_to_check=["status"]
+        )
         status = response.json()["status"]
         self._status = convert_str_to_job_status(status)
         return self._status
