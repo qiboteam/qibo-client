@@ -46,5 +46,7 @@ token = "your-token"
 client = qibo_client.Client(token)
 
 # run the circuit
-result = client.run_circuit(circuit, nshots=1000, device="sim")
+job = client.run_circuit(circuit, nshots=1000, device="sim")
+result = job.result()
+print(result)
 ```
