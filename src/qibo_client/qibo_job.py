@@ -47,7 +47,7 @@ def wait_for_response_to_get_request(
         response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
         job_status = convert_str_to_job_status(response.headers["Job-Status"])
         if verbose and job_status == QiboJobStatus.QUEUED:
-            logger.info("Job QUEUEING")
+            logger.info("Job QUEUING")
         if verbose and job_status == QiboJobStatus.RUNNING:
             logger.info("Job RUNNING")
         if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
