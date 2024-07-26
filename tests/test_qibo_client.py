@@ -191,11 +191,11 @@ class TestQiboClient:
 
         rows = [(FAKE_LAB_LOCATION, FAKE_DEVICE, 1.5)]
         expected_table = tabulate.tabulate(
-            rows, headers=["Lab", "Partitions", "Space Left [KBs]"]
+            rows, headers=["Lab", "Partitions", "Time Left [s]"]
         )
         expected_message = (
             f"User: {FAKE_USER_EMAIL}\n"
-            "Disk quota left: 5.00 / 10.00\n"
+            "Disk quota left [KBs]: 5.00 / 10.00\n"
             f"{expected_table}"
         )
 

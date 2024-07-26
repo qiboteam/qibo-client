@@ -150,7 +150,7 @@ class Client:
 
         message = (
             f"User: {disk_quota['user']['email']}\n"
-            f"Disk quota left: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
+            f"Disk quota left [KBs]: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
         )
 
         rows = [
@@ -162,6 +162,6 @@ class Client:
             for t in time_quotas
         ]
         message += tabulate.tabulate(
-            rows, headers=["Lab", "Partitions", "Space Left [KBs]"]
+            rows, headers=["Lab", "Partitions", "Time Left [s]"]
         )
         logger.info(message)
