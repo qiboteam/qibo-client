@@ -53,7 +53,8 @@ receive after registration.
    >>> import qibo
    >>> circuit = qibo.models.QFT(5)
    >>> client = Client("your qibo token")
-   >>> result = client.run_circuit(circuit, nshots=100, device="sim")
+   >>> job = client.run_circuit(circuit, nshots=100, device="sim")
+   >>> result = job.result()
    >>> print(result)
 
 API reference
