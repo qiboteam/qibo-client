@@ -6,7 +6,7 @@ import pytest
 import responses
 import utils_test_qibo_client as utils
 
-from qibo_client import QiboJobResult, QiboJobStatus, exceptions, qibo_job
+from qibo_client import QiboJobStatus, exceptions, qibo_job
 
 ARCHIVE_NAME = "file.tar.gz"
 
@@ -210,9 +210,7 @@ FAKE_LAB_LOCATION = "fakeLabLocation"
 FAKE_DEVICE = "fakeDevice"
 BASE_JOB_STATUS = QiboJobStatus.DONE
 BASE_JOB_STATUS_STR = "success"
-EMPTY_RESULT = QiboJobResult(pid=FAKE_PID, success=False, result=None)
 FAKE_RESULT = "fakeResult"
-FULL_RESULT = QiboJobResult(pid=FAKE_PID, success=True, result=FAKE_RESULT)
 
 
 class TestQiboJob:
@@ -374,7 +372,7 @@ class TestQiboJob:
             raise_tarfile_readerror,
         )
         result = self.obj.result()
-        assert result == EMPTY_RESULT
+        assert result is None
 
     @responses.activate
     def test_result_with_job_status_error(self, monkeypatch, refresh_job):
@@ -387,7 +385,7 @@ class TestQiboJob:
             lambda *args: "ok",
         )
         result = self.obj.result()
-        assert result == EMPTY_RESULT
+        assert result is None
 
     @responses.activate
     def test_result_with_job_status_success(self, monkeypatch, refresh_job):
@@ -405,5 +403,4 @@ class TestQiboJob:
             lambda x: FAKE_RESULT,
         )
         result = self.obj.result()
-        assert result == FULL_RESULT
-        assert str(result) == FAKE_RESULT
+        assert result == FAKE_RESULT
