@@ -24,38 +24,6 @@ class QiboJobStatus(Enum):
     ERROR = "error"
 
 
-def wait_for_response_to_get_request(
-    url: str, seconds_between_checks: T.Optional[int] = None, verbose: bool = False
-) -> T.Tuple[requests.Response, QiboJobStatus]:
-    """Wait until the server completes the computation and return the response.
-
-    :param url: the endpoint to make the request
-    :type url: str
-
-    :return: the response of the get request
-    :rtype: requests.Response
-    :return: the completed job response status
-    :rtype: QiboJobStatus
-    """
-    if seconds_between_checks is None:
-        seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
-    if not verbose:
-        logger.info("Please wait until your job is completed...")
-
-    while True:
-        response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
-        job_status = convert_str_to_job_status(response.headers["Job-Status"])
-        if verbose and job_status == QiboJobStatus.QUEUED:
-            logger.info("Job QUEUING")
-        if verbose and job_status == QiboJobStatus.RUNNING:
-            logger.info("Job RUNNING")
-        if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
-            if verbose:
-                logger.info("Job COMPLETED")
-            return response, job_status
-        time.sleep(seconds_between_checks)
-
-
 def _write_stream_to_tmp_file(stream: T.Iterable) -> Path:
     """Write chunk of bytes to temporary file.
 
@@ -145,7 +113,7 @@ class QiboJob:
 
     def status(self) -> QiboJobStatus:
         url = self.base_url + f"/job/info/{self.pid}/"
-        response = response = QiboApiRequest.get(
+        response = QiboApiRequest.get(
             url, timeout=constants.TIMEOUT, keys_to_check=["status"]
         )
         status = response.json()["status"]
@@ -175,8 +143,7 @@ class QiboJob:
         :rtype: T.Optional[np.ndarray]
         """
         # @TODO: here we can use custom logger levels instead of if statement
-        url = self.base_url + f"/job/result/{self.pid}/"
-        response, job_status = wait_for_response_to_get_request(url, wait, verbose)
+        response, job_status = self._wait_for_response_to_get_request(wait, verbose)
 
         # create the job results folder
         self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
@@ -206,3 +173,38 @@ class QiboJob:
 
         self.results_path = self.results_folder / "results.npy"
         return qibo.result.load_result(self.results_path)
+
+    def _wait_for_response_to_get_request(
+        self, seconds_between_checks: T.Optional[int] = None, verbose: bool = False
+    ) -> T.Tuple[requests.Response, QiboJobStatus]:
+        """Wait until the server completes the computation and return the response.
+
+        :param url: the endpoint to make the request
+        :type url: str
+
+        :return: the response of the get request
+        :rtype: requests.Response
+        :return: the completed job response status
+        :rtype: QiboJobStatus
+        """
+        if seconds_between_checks is None:
+            seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
+
+        is_job_finished = self.status() not in [QiboJobStatus.DONE, QiboJobStatus.ERROR]
+        if not verbose and is_job_finished:
+            logger.info("Please wait until your job is completed...")
+
+        url = self.base_url + f"/job/result/{self.pid}/"
+
+        while True:
+            response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
+            job_status = convert_str_to_job_status(response.headers["Job-Status"])
+            if verbose and job_status == QiboJobStatus.QUEUED:
+                logger.info("Job QUEUING")
+            if verbose and job_status == QiboJobStatus.RUNNING:
+                logger.info("Job RUNNING")
+            if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
+                if verbose:
+                    logger.info("Job COMPLETED")
+                return response, job_status
+            time.sleep(seconds_between_checks)
