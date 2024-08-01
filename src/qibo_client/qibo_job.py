@@ -2,7 +2,6 @@ import tarfile
 import tempfile
 import time
 import typing as T
-from dataclasses import dataclass
 from enum import Enum
 from pathlib import Path
 
@@ -102,16 +101,6 @@ def _save_and_unpack_stream_response_to_folder(
     archive_path.unlink()
 
 
-@dataclass
-class QiboJobResult:
-    pid: str
-    success: bool
-    result: T.Optional[qibo.result.QuantumState]
-
-    def __str__(self):
-        return str(self.result)
-
-
 class QiboJob:
     def __init__(
         self,
@@ -173,7 +162,9 @@ class QiboJob:
             self.refresh()
         return self._status is QiboJobStatus.DONE
 
-    def result(self, wait: int = 5, verbose: bool = False) -> QiboJobResult:
+    def result(
+        self, wait: int = 5, verbose: bool = False
+    ) -> T.Optional[qibo.result.QuantumState]:
         """Send requests to server checking whether the job is completed.
 
         This function populates the `TIIProvider.results_folder` and
@@ -191,8 +182,6 @@ class QiboJob:
         self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
         self.results_folder.mkdir(parents=True, exist_ok=True)
 
-        result = QiboJobResult(pid=self.pid, success=False, result=None)
-
         # Save the stream to disk
         try:
             _save_and_unpack_stream_response_to_folder(
@@ -206,16 +195,14 @@ class QiboJob:
                 "the file at `%s`",
                 self.results_folder.as_posix(),
             )
-            return result
+            return None
 
         if job_status == QiboJobStatus.ERROR:
             logger.info(
                 "Job exited with error, check logs in %s folder",
                 self.results_folder.as_posix(),
             )
-            return result
+            return None
 
         self.results_path = self.results_folder / "results.npy"
-        result.success = True
-        result.result = qibo.result.load_result(self.results_path)
-        return result
+        return qibo.result.load_result(self.results_path)
