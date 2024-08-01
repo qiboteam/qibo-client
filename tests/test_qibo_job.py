@@ -27,70 +27,6 @@ def test_convert_str_to_job_status(status, expected_result):
     assert result == expected_result
 
 
-@pytest.mark.parametrize(
-    "status, expected_job_status",
-    [
-        ("success", QiboJobStatus.DONE),
-        ("error", QiboJobStatus.ERROR),
-    ],
-)
-@responses.activate
-def test_wait_for_response_to_get_request(monkeypatch, status, expected_job_status):
-
-    monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
-
-    failed_attempts = 3
-    endpoint = FAKE_URL + "/job/result/"
-    failed_headers = {"Job-Status": "in_progress"}
-    response_json = {"detail": "output"}
-    for _ in range(failed_attempts):
-        responses.add(
-            responses.GET,
-            endpoint,
-            headers=failed_headers,
-            status=200,
-        )
-
-    success_headers = {"Job-Status": status}
-    responses.add(
-        responses.GET, endpoint, headers=success_headers, json=response_json, status=200
-    )
-
-    response, job_status = qibo_job.wait_for_response_to_get_request(endpoint, 1e-4)
-
-    assert job_status == expected_job_status
-    assert response.json() == response_json
-    assert len(responses.calls) == failed_attempts + 1
-    for i in range(failed_attempts + 1):
-        r = responses.calls[i].request
-        assert r.url == endpoint
-
-
-@pytest.mark.parametrize(
-    "status",
-    ["success", "error"],
-)
-@responses.activate
-def test_wait_for_response_to_get_request_verbose(monkeypatch, caplog, status):
-    monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
-    monkeypatch.setattr("qibo_client.qibo_job.constants.SECONDS_BETWEEN_CHECKS", 1e-4)
-
-    endpoint = FAKE_URL + "/job/result/"
-    statuses_list = ["to_do", "in_progress", status]
-    for s in statuses_list:
-        failed_headers = {"Job-Status": s}
-        responses.add(
-            responses.GET,
-            endpoint,
-            headers=failed_headers,
-            status=200,
-        )
-    qibo_job.wait_for_response_to_get_request(endpoint, verbose=True)
-
-    expected_logs = ["Job QUEUING", "Job RUNNING", "Job COMPLETED"]
-    assert caplog.messages == expected_logs
-
-
 @pytest.fixture
 def archive_path(monkeypatch, tmp_path: Path):
     archive_path = tmp_path / ARCHIVE_NAME
@@ -364,6 +300,14 @@ class TestQiboJob:
         headers = {"Job-Status": "success"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
+        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "in_progress"},
+            status=200,
+        )
+
         def raise_tarfile_readerror(*args):
             raise tarfile.ReadError()
 
@@ -380,6 +324,14 @@ class TestQiboJob:
         headers = {"Job-Status": "error"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
+        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "in_progress"},
+            status=200,
+        )
+
         monkeypatch.setattr(
             "qibo_client.qibo_job._save_and_unpack_stream_response_to_folder",
             lambda *args: "ok",
@@ -393,6 +345,14 @@ class TestQiboJob:
         headers = {"Job-Status": "success"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
+        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "in_progress"},
+            status=200,
+        )
+
         monkeypatch.setattr(
             "qibo_client.qibo_job._save_and_unpack_stream_response_to_folder",
             lambda *args: "ok",
@@ -404,3 +364,91 @@ class TestQiboJob:
         )
         result = self.obj.result()
         assert result == FAKE_RESULT
+    
+    @pytest.mark.parametrize(
+        "status, expected_job_status",
+        [
+            ("success", QiboJobStatus.DONE),
+            ("error", QiboJobStatus.ERROR),
+        ],
+    )
+    @responses.activate
+    def test_wait_for_response_to_get_request(self, monkeypatch, caplog, status, expected_job_status):
+
+        monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
+
+        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "in_progress"},
+            status=200,
+        )
+
+        failed_attempts = 3
+        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        failed_headers = {"Job-Status": "in_progress"}
+        response_json = {"detail": "output"}
+        for _ in range(failed_attempts):
+            responses.add(
+                responses.GET,
+                endpoint,
+                headers=failed_headers,
+                status=200,
+            )
+
+        success_headers = {"Job-Status": status}
+        responses.add(
+            responses.GET, endpoint, headers=success_headers, json=response_json, status=200
+        )
+
+        response, job_status = self.obj._wait_for_response_to_get_request(1e-4)
+
+        assert job_status == expected_job_status
+        assert response.json() == response_json
+        assert len(responses.calls) == 1 + failed_attempts + 1
+        
+        # first call is to status
+        assert responses.calls[0].request.url == info_endpoint
+        
+        # other calls are to result
+        for i in range(failed_attempts + 1):
+            r = responses.calls[i + 1].request
+            assert r.url == endpoint
+        
+        expected_logs = ["Please wait until your job is completed..."]
+        assert caplog.messages == expected_logs
+
+    @pytest.mark.parametrize(
+        "status",
+        ["success", "error"],
+    )
+    @responses.activate
+    def test_wait_for_response_to_get_request_verbose(self, monkeypatch, caplog, status):
+        monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
+        monkeypatch.setattr(
+            "qibo_client.qibo_job.constants.SECONDS_BETWEEN_CHECKS", 1e-4
+        )
+
+        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        responses.add(
+            responses.GET,
+            endpoint,
+            json={"status": "in_progress"},
+            status=200,
+        )
+
+        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        statuses_list = ["to_do", "in_progress", status]
+        for s in statuses_list:
+            failed_headers = {"Job-Status": s}
+            responses.add(
+                responses.GET,
+                endpoint,
+                headers=failed_headers,
+                status=200,
+            )
+        self.obj._wait_for_response_to_get_request(verbose=True)
+
+        expected_logs = ["Job QUEUING", "Job RUNNING", "Job COMPLETED"]
+        assert caplog.messages == expected_logs
