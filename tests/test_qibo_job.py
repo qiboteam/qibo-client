@@ -364,7 +364,7 @@ class TestQiboJob:
         )
         result = self.obj.result()
         assert result == FAKE_RESULT
-    
+
     @pytest.mark.parametrize(
         "status, expected_job_status",
         [
@@ -373,7 +373,9 @@ class TestQiboJob:
         ],
     )
     @responses.activate
-    def test_wait_for_response_to_get_request(self, monkeypatch, caplog, status, expected_job_status):
+    def test_wait_for_response_to_get_request(
+        self, monkeypatch, caplog, status, expected_job_status
+    ):
 
         monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
 
@@ -399,7 +401,11 @@ class TestQiboJob:
 
         success_headers = {"Job-Status": status}
         responses.add(
-            responses.GET, endpoint, headers=success_headers, json=response_json, status=200
+            responses.GET,
+            endpoint,
+            headers=success_headers,
+            json=response_json,
+            status=200,
         )
 
         response, job_status = self.obj._wait_for_response_to_get_request(1e-4)
@@ -407,15 +413,15 @@ class TestQiboJob:
         assert job_status == expected_job_status
         assert response.json() == response_json
         assert len(responses.calls) == 1 + failed_attempts + 1
-        
+
         # first call is to status
         assert responses.calls[0].request.url == info_endpoint
-        
+
         # other calls are to result
         for i in range(failed_attempts + 1):
             r = responses.calls[i + 1].request
             assert r.url == endpoint
-        
+
         expected_logs = ["Please wait until your job is completed..."]
         assert caplog.messages == expected_logs
 
@@ -424,7 +430,9 @@ class TestQiboJob:
         ["success", "error"],
     )
     @responses.activate
-    def test_wait_for_response_to_get_request_verbose(self, monkeypatch, caplog, status):
+    def test_wait_for_response_to_get_request_verbose(
+        self, monkeypatch, caplog, status
+    ):
         monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
         monkeypatch.setattr(
             "qibo_client.qibo_job.constants.SECONDS_BETWEEN_CHECKS", 1e-4
