@@ -1,11 +1,13 @@
 """The module implementing the TIIProvider class."""
 
+import typing as T
+
 import qibo
 
 from . import constants
 from .config_logging import logger
 from .exceptions import JobPostServerError
-from .qibo_job import QiboJob, QiboJobResult
+from .qibo_job import QiboJob
 from .utils import QiboApiRequest
 
 
@@ -63,7 +65,7 @@ class Client:
         nshots: int = 1000,
         lab_location: str = "tii",
         device: str = "sim",
-    ) -> QiboJobResult:
+    ) -> T.Optional[qibo.result.QuantumState]:
         """Run circuit on the cluster.
 
         :param circuit: the QASM representation of the circuit to run
