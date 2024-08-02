@@ -1,330 +1,221 @@
-import tarfile
-from pathlib import Path
-from typing import Callable
-from unittest.mock import Mock, patch
+import logging
 
 import pytest
-import utils_test_qibo_client as utils
-from requests.exceptions import HTTPError
+import responses
 
-from qibo_client import qibo_client
-from qibo_client.config import JobPostServerError, MalformedResponseError
+from qibo_client import QiboJob, exceptions, qibo_client
 
-PKG = "qibo_client.qibo_client"
-LOCAL_URL = "http://localhost:8000/"
-FAKE_QIBO_VERSION = "0.2.4"
+MOD = "qibo_client.qibo_client"
+FAKE_URL = "http://fake.endpoint.com/api"
+FAKE_TOKEN = "fakeToken"
+FAKE_QIBO_VERSION = "0.2.6"
+FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.2.4"
 FAKE_PID = "123"
-ARCHIVE_NAME = "file.tar.gz"
 TIMEOUT = 1
 
 
-@pytest.fixture(autouse=True)
-def mock_qibo():
-    """Ensure that all the requests are made on localhost"""
-    with patch(f"{PKG}.qibo") as _mock_qibo:
-        _mock_qibo.__version__ = FAKE_QIBO_VERSION
-        _mock_qibo.result.load_result.side_effect = lambda x: x
-        yield _mock_qibo
+class FakeCircuit:
+    @property
+    def raw(self):
+        return "fakeCircuit"
 
 
-@pytest.fixture(scope="module", autouse=True)
-def mock_timeout():
-    """Ensure that all the requests are made on localhost"""
-    with patch(f"{PKG}.constants.TIMEOUT", TIMEOUT) as _fixture:
-        yield _fixture
+FAKE_CIRCUIT = FakeCircuit()
+FAKE_NSHOTS = 10
+FAKE_LAB_LOCATION = "fakeLabLocation"
+FAKE_DEVICE = "fakeDevice"
 
 
-@pytest.fixture
-def results_base_folder(tmp_path: Path):
-    results_base_folder = tmp_path / "results"
-    results_base_folder.mkdir()
-    with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
-        yield results_base_folder
-
-
-def _get_request_side_effect(job_status: str = "success") -> Callable:
-    """Return a callable mock for the get request function
-
-    Job status parameter controls the response header of `get_result/{pid}`
-    endpoint.
-
-    :param job_status: the Job-Status header of the mocked response
-    :type job_status: str
-
-    :return: the get request side effect function
-    :rtype: Callable
-    """
-
-    def _request_side_effect(url, timeout):
-        if url == LOCAL_URL + "qibo_version/":
-            return utils.MockedResponse(
-                status_code=200,
-                json_data={"qibo_version": FAKE_QIBO_VERSION},
-            )
-        if url == LOCAL_URL + f"get_result/{FAKE_PID}/":
-            stream, _, _ = utils.get_in_memory_fake_archive_stream()
-            json_data = {
-                "content": None,
-                "iter_content": stream,
-                "headers": {"Job-Status": job_status},
-            }
-            return utils.MockedResponse(status_code=200, json_data=json_data)
-
-    return _request_side_effect
-
-
-def _post_request_side_effect(url, json, timeout):
-    if url == LOCAL_URL + "run_circuit/":
-        json_data = {"pid": FAKE_PID, "message": "Success. Job posted"}
-        return utils.MockedResponse(status_code=200, json_data=json_data)
-
-
-@pytest.fixture
-def mock_request():
-    with patch(f"{PKG}.requests") as _mock_request:
-        _mock_request.get.side_effect = _get_request_side_effect()
-        _mock_request.post.side_effect = _post_request_side_effect
-        yield _mock_request
-
-
-@pytest.fixture
-def archive_path(tmp_path):
-    return tmp_path / ARCHIVE_NAME
-
-
-@pytest.fixture
-def mock_tempfile(archive_path):
-    with patch(f"{PKG}.tempfile") as _mock_tempfile:
-        _mock_tempfile.NamedTemporaryFile = utils.get_fake_tmp_file_class(archive_path)
-        yield _mock_tempfile
-
-
-def test_check_response_has_keys():
-    """Check response body contains the keys"""
-    keys = ["key1", "key2"]
-    json_data = {"key1": 0, "key2": 1}
-    status_code = 200
-    mock_response = utils.MockedResponse(status_code, json_data)
-    qibo_client.check_response_has_keys(mock_response, keys)
-
-
-def test_check_response_has_missing_keys():
-    """Check response body contains the keys"""
-    keys = ["key1", "key2"]
-    json_data = {"key1": 0}
-    status_code = 200
-    mock_response = utils.MockedResponse(status_code, json_data)
-    with pytest.raises(MalformedResponseError):
-        qibo_client.check_response_has_keys(mock_response, keys)
-
-
-def _get_local_client():
-    return qibo_client.Client("valid_token", LOCAL_URL)
-
-
-def test_check_client_server_qibo_versions_with_version_match(mock_request: Mock):
-    _get_local_client()
-    mock_request.get.assert_called_once_with(
-        LOCAL_URL + "qibo_version/", timeout=TIMEOUT
+class TestQiboClient:
+    @pytest.fixture(
+        autouse=True,
     )
+    def setup_and_teardown(self, monkeypatch):
+        monkeypatch.setattr(f"{MOD}.constants.BASE_URL", FAKE_URL)
+        self.obj = qibo_client.Client(FAKE_TOKEN, FAKE_URL)
+        yield
 
+    @pytest.fixture
+    def pass_version_check(self, monkeypatch):
+        monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
+        endpoint = FAKE_URL + "/qibo_version/"
+        response_json = {
+            "server_qibo_version": FAKE_QIBO_VERSION,
+            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+        }
+        with responses.RequestsMock() as rsps:
+            rsps.get(endpoint, status=200, json=response_json)
+            yield rsps
 
-def test_check_client_server_qibo_versions_with_version_mismatch(
-    mock_qibo: Mock, mock_request: Mock
-):
-    mock_qibo.__version__ = "0.2.1"
-    with (
-        patch(f"{PKG}.constants.MINIMUM_QIBO_VERSION_ALLOWED", "0.1.9"),
-        patch(f"{PKG}.logger") as mock_logger,
+    def test_init_method(self):
+        assert self.obj.token == FAKE_TOKEN
+        assert self.obj.base_url == FAKE_URL
+
+        assert self.obj.pid is None
+        assert self.obj.results_folder is None
+        assert self.obj.results_path is None
+
+    @responses.activate
+    def test_check_client_server_qibo_versions_raises_assertion_error(
+        self, monkeypatch
     ):
-        _get_local_client()
-    mock_logger.warning.assert_called_once()
+        monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
+
+        endpoint = FAKE_URL + "/qibo_version/"
+        response_json = {
+            "server_qibo_version": "0.2.9",
+            "minimum_client_qibo_version": "0.2.8",
+        }
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
+
+        with pytest.raises(AssertionError) as err:
+            self.obj.check_client_server_qibo_versions()
+
+        expected_message = (
+            "The qibo-client package requires an installed qibo package version"
+            f">=0.2.8, the local qibo version is {FAKE_QIBO_VERSION}"
+        )
+        assert str(err.value) == expected_message
+
+    def test_check_client_server_qibo_versions_with_no_log(
+        self, pass_version_check, caplog
+    ):
+        """Tests client does not log any warning if the local qibo version is
+        greater of equal than the remote one.
+        """
+        caplog.set_level(logging.WARNING)
+
+        self.obj.check_client_server_qibo_versions()
+
+        assert caplog.messages == []
+
+    @responses.activate
+    def test_check_client_server_qibo_versions_with_warning(self, monkeypatch, caplog):
+        """Tests client logs a warning if the remote qibo version is greater
+        than the local one.
+        """
+        caplog.set_level(logging.WARNING)
+        monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
+
+        endpoint = FAKE_URL + "/qibo_version/"
+        response_json = {
+            "server_qibo_version": "0.2.9",
+            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+        }
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
+        self.obj.check_client_server_qibo_versions()
+
+        expected_log = (
+            "Local Qibo package version does not match the server one, please "
+            f"upgrade: {FAKE_QIBO_VERSION} -> 0.2.9"
+        )
+        assert expected_log in caplog.messages
+
+    def test_run_circuit_with_invalid_token(self, pass_version_check):
+        endpoint = FAKE_URL + "/run_circuit/"
+        message = "User not found, specify the correct token"
+        response_json = {"detail": message}
+        pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
+
+        with pytest.raises(exceptions.JobApiError) as err:
+            self.obj.run_circuit(
+                FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
+            )
+
+        expected_message = f"[404 Error] {message}"
+        assert str(err.value) == expected_message
+
+    def test_run_circuit_with_job_post_error(self, pass_version_check):
+        endpoint = FAKE_URL + "/run_circuit/"
+        message = "Server failed to post job to queue"
+        response_json = {"detail": message}
+        pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
+
+        with pytest.raises(exceptions.JobPostServerError) as err:
+            self.obj.run_circuit(
+                FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
+            )
+
+        assert str(err.value) == message
+
+    def test_run_circuit_with_success(self, pass_version_check, caplog):
+        caplog.set_level(logging.INFO)
+        endpoint = FAKE_URL + "/run_circuit/"
+        response_json = {"pid": FAKE_PID}
+        pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
+
+        job = self.obj.run_circuit(
+            FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
+        )
+
+        assert job.pid == FAKE_PID
+        assert job.base_url == FAKE_URL
+        assert job.circuit == "fakeCircuit"
+        assert job.nshots == FAKE_NSHOTS
+        assert job.lab_location == FAKE_LAB_LOCATION
+        assert job.device == FAKE_DEVICE
+        assert job._status is None
+
+        expected_messages = [
+            f"Job posted on server with pid {FAKE_PID}",
+            f"Check results availability for {FAKE_PID} job in your reserved "
+            f"page at {FAKE_URL}",
+        ]
+        for expected_message in expected_messages:
+            assert expected_message in caplog.messages
 
 
-def test_check_client_server_qibo_versions_with_low_local_version(mock_qibo: Mock):
-    mock_qibo.__version__ = "0.0.1"
-    with pytest.raises(AssertionError):
-        _get_local_client()
+# @pytest.fixture
+# def results_base_folder(tmp_path: Path):
+#     results_base_folder = tmp_path / "results"
+#     results_base_folder.mkdir()
+#     with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
+#         yield results_base_folder
 
 
-def test__post_circuit_with_invalid_token(mock_request: Mock):
-    def _new_side_effect(url, json, timeout):
-        return utils.MockedResponse(status_code=404)
+# def test__post_circuit_not_successful(mock_request: Mock):
+#     def _new_side_effect(url, json, timeout):
+#         json_data = {"pid": None, "message": "post job to queue failed"}
+#         return utils.MockedResponse(status_code=200, json_data=json_data)
 
-    mock_request.post.side_effect = _new_side_effect
+#     mock_request.post.side_effect = _new_side_effect
 
-    client = _get_local_client()
-    with pytest.raises(HTTPError):
-        client._post_circuit(utils.MockedCircuit())
-
-
-def test__post_circuit_not_successful(mock_request: Mock):
-    def _new_side_effect(url, json, timeout):
-        json_data = {"pid": None, "message": "post job to queue failed"}
-        return utils.MockedResponse(status_code=200, json_data=json_data)
-
-    mock_request.post.side_effect = _new_side_effect
-
-    client = _get_local_client()
-    with pytest.raises(JobPostServerError):
-        client._post_circuit(utils.MockedCircuit())
+#     client = _get_local_client()
+#     with pytest.raises(JobPostServerError):
+#         client._post_circuit(utils.MockedCircuit())
 
 
-def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
-    def _new_side_effect(url, json, timeout):
-        json_data = {"pid": None, "message": "post job to queue failed"}
-        return utils.MockedResponse(status_code=200, json_data=json_data)
+# def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
+#     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
 
-    mock_request.post.side_effect = _new_side_effect
+#     client = _get_local_client()
+#     client.pid = FAKE_PID
+#     result = client.run_circuit(utils.MockedCircuit())
 
-    client = _get_local_client()
-    return_value = client.run_circuit(utils.MockedCircuit())
-
-    assert return_value is None
+#     assert result == expected_array_path
 
 
-def test_wait_for_response_to_get_request(mock_request: Mock):
-    failed_attempts = 3
-    url = "http://example.url"
+# def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
+#     def _new_side_effect(url, json, timeout):
+#         json_data = {"pid": None, "message": "post job to queue failed"}
+#         return utils.MockedResponse(status_code=200, json_data=json_data)
 
-    keep_waiting = utils.MockedResponse(
-        status_code=200, json_data={"content": b"Job still in progress"}
-    )
-    job_done = utils.MockedResponse(status_code=200)
+#     mock_request.post.side_effect = _new_side_effect
 
-    mock_request.get.side_effect = [keep_waiting] * failed_attempts + [job_done]
+#     client = _get_local_client()
+#     return_value = client.run_circuit(utils.MockedCircuit())
 
-    with patch(f"{PKG}.constants.SECONDS_BETWEEN_CHECKS", 1e-4):
-        qibo_client.wait_for_response_to_get_request(url)
-
-    assert mock_request.get.call_count == failed_attempts + 1
+#     assert return_value is None
 
 
-def test__write_stream_to_tmp_file_with_simple_text_stream(
-    mock_tempfile: Mock, archive_path: Path
-):
-    """
-    The test contains the following checks:
+# def test__run_circuit_without_waiting_for_results(mock_request: Mock):
+#     def _new_side_effect(url, json, timeout):
+#         json_data = {"pid": None, "message": "post job to queue failed"}
+#         return utils.MockedResponse(status_code=200, json_data=json_data)
 
-    - a new temporary file is created to a specific direction
-    - the content of the temporary file contains equals the one given
-    """
-    stream = [b"line1\n", b"line2\n"]
+#     mock_request.post.side_effect = _new_side_effect
 
-    assert not archive_path.is_file()
+#     client = _get_tii_client()
+#     return_value = client.run_circuit(utils.MockedCircuit(), wait_for_results=False)
 
-    result_path = qibo_client._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-    assert result_path.read_bytes() == b"".join(stream)
-
-
-def test__write_stream_to_tmp_file(mock_tempfile: Mock, archive_path: Path):
-    """
-    The test contains the following checks:
-
-    - a new temporary file is created to a specific direction
-    - the content of the temporary file contains equals the one given
-    """
-    stream, members, members_contents = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    result_path = qibo_client._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-
-    # load the archive in memory and check that the members and the contents
-    # match with the expected ones
-    with tarfile.open(result_path, "r:gz") as archive:
-        result_members = sorted(archive.getnames())
-        assert result_members == members
-        for member, member_content in zip(members, members_contents):
-            with archive.extractfile(member) as result_member:
-                result_content = result_member.read()
-            assert result_content == member_content
-
-
-def test__extract_archive_to_folder_with_non_archive_input(tmp_path):
-    file_path = tmp_path / "file.txt"
-    file_path.write_text("test content")
-
-    with pytest.raises(tarfile.ReadError):
-        qibo_client._extract_archive_to_folder(file_path, tmp_path)
-
-
-@patch(
-    f"{PKG}._save_and_unpack_stream_response_to_folder", utils.raise_tarfile_readerror
-)
-def test__get_result_handles_tarfile_readerror(mock_request, results_base_folder):
-    file_path = results_base_folder / "file.txt"
-    file_path.write_text("test content")
-
-    client = _get_local_client()
-    result = client.run_circuit(utils.MockedCircuit())
-
-    assert result is None
-
-
-def test__extract_archive_to_folder(archive_path, results_base_folder):
-    members, members_contents = utils.create_fake_archive(archive_path)
-
-    qibo_client._extract_archive_to_folder(archive_path, results_base_folder)
-
-    result_members = []
-    result_members_contents = []
-    for member_path in sorted(results_base_folder.iterdir()):
-        result_members.append(member_path.name)
-        result_members_contents.append(member_path.read_bytes())
-
-    assert result_members == members
-    assert result_members_contents == members_contents
-
-
-def test__save_and_unpack_stream_response_to_folder(
-    mock_tempfile: Mock, archive_path: Path, results_base_folder: Path
-):
-    stream, _, _ = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    qibo_client._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
-
-    # the archive should have been removed
-    assert not archive_path.is_file()
-
-
-def test__get_result(mock_qibo, mock_request, mock_tempfile, results_base_folder):
-    expected_array_path = results_base_folder / FAKE_PID / "results.npy"
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client._get_result()
-
-    mock_qibo.result.load_result.assert_called_once_with(expected_array_path)
-    assert result == expected_array_path
-
-
-def test__get_result_with_job_status_error(
-    mock_qibo, mock_request, mock_tempfile, results_base_folder
-):
-    mock_request.get.side_effect = _get_request_side_effect(job_status="error")
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client._get_result()
-
-    mock_qibo.result.load_result.assert_not_called()
-    assert result is None
-
-
-def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
-    expected_array_path = results_base_folder / FAKE_PID / "results.npy"
-
-    client = _get_local_client()
-    client.pid = FAKE_PID
-    result = client.run_circuit(utils.MockedCircuit())
-
-    assert result == expected_array_path
+#     assert return_value is None

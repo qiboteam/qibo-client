@@ -21,3 +21,11 @@ class JobPostServerError(Exception):
     def __init__(self, message="Server failed to post job to queue"):
         self.message = message
         super().__init__(self.message)
+
+
+class JobApiError(Exception):
+    def __init__(self, status_code: int, message: str):
+        self.status_code = status_code
+        self.message = message
+        self.displayed_message = f"[{self.status_code} Error] {self.message}"
+        super().__init__(self.displayed_message)

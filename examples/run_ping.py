@@ -5,8 +5,7 @@ from qibo_client import Client
 
 # read the token from file
 token_path = Path(__file__).parent / "token.txt"
-with open(token_path) as f:
-    token = f.read()
+token = token_path.read_text()
 
 # authenticate to server through the client instance
 start = time.time()
