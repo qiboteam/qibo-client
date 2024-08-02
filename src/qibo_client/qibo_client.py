@@ -4,6 +4,7 @@ import typing as T
 
 import qibo
 import tabulate
+from packaging.version import Version
 
 from . import constants
 from .config_logging import logger
@@ -41,10 +42,12 @@ class Client:
             keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
         )
 
-        qibo_server_version = response.json()["server_qibo_version"]
-        qibo_minimum_client_version = response.json()["minimum_client_qibo_version"]
+        qibo_server_version = Version(response.json()["server_qibo_version"])
+        qibo_minimum_client_version = Version(
+            response.json()["minimum_client_qibo_version"]
+        )
 
-        qibo_client_version = qibo.__version__
+        qibo_client_version = Version(qibo.__version__)
         msg = (
             "The qibo-client package requires an installed qibo package version"
             f">={qibo_minimum_client_version}, the local qibo "
