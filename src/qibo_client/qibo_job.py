@@ -135,11 +135,11 @@ class QiboJob:
     ) -> T.Optional[qibo.result.QuantumState]:
         """Send requests to server checking whether the job is completed.
 
-        This function populates the `TIIProvider.results_folder` and
-        `TIIProvider.results_path` attributes.
+        This function populates the `Client.results_folder` and
+        `Client.results_path` attributes.
 
-        :return: the numpy array with the results of the computation. None if
-        the job raised an error.
+        :return: the numpy array with the results of the computation.
+                 None if the job raised an error.
         :rtype: T.Optional[np.ndarray]
         """
         # @TODO: here we can use custom logger levels instead of if statement

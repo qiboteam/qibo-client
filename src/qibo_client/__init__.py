@@ -1,4 +1,4 @@
-"""The `qibo_tii_provider` package"""
+"""The `qibo-client` package"""
 
 import importlib.metadata as im
 

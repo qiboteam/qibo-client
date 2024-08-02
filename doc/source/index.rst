@@ -31,8 +31,8 @@ The qibo-client package can be installed through pip:
    pip install qibo-client
 
 
-Tutorials
-=========
+Quick tutorial
+==============
 
 Once installed, the provider allows to run quantum circuit computations on the
 remote server.
@@ -43,7 +43,7 @@ remote server.
    `this link <https://cloud.qibo.science>`_ to obtain the needed
    token to run computations on the cluster.
 
-The following example shows how to launch a computation on the TII cluster.
+The following example shows how to launch a simulation job.
 Remember to replace `your qibo token` string with your actual valid token
 receive after registration.
 
@@ -57,8 +57,8 @@ receive after registration.
    >>> result = job.result()
    >>> print(result)
 
-API reference
-=============
+Content
+=======
 
 .. toctree::
    :maxdepth: 2
@@ -66,10 +66,20 @@ API reference
 
    modules
 
+.. toctree::
+    :maxdepth: 1
+    :caption: Documentation links
+
+    Qibo docs <https://qibo.science/qibo/stable/>
+    Qibolab docs <https://qibo.science/qibolab/stable/>
+    Qibocal docs <https://qibo.science/qibocal/stable/>
+    Qibosoq docs <https://qibo.science/qibosoq/stable/>
+    Qibochem docs <https://qibo.science/qibochem/stable/>
+    Qibotn docs <https://qibo.science/qibotn/stable/>
+    Qibo-cloud-backends docs <https://qibo.science/qibo-cloud-backends/stable/>
 
 Indices and tables
 ==================
 
 * :ref:`genindex`
-* :ref:`modindex`
 * :ref:`search`
