@@ -1,29 +1,15 @@
-qibo\_client package
-====================
-
-Submodules
-----------
-
-qibo\_client.config module
---------------------------
-
-.. automodule:: qibo_client.config
-   :members:
-   :undoc-members:
-   :show-inheritance:
-
-qibo\_client.qibo\_client module
---------------------------------
+Client object
+=============
 
 .. automodule:: qibo_client.qibo_client
    :members:
    :undoc-members:
    :show-inheritance:
 
-Module contents
----------------
+Job object
+==========
 
-.. automodule:: qibo_client
+.. automodule:: qibo_client.qibo_job
    :members:
    :undoc-members:
    :show-inheritance:

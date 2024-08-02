@@ -1,4 +1,4 @@
-"""The module implementing the TIIProvider class."""
+"""The module implementing the Client class."""
 
 import typing as T
 
