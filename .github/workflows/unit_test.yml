@@ -5,7 +5,7 @@ on:
   push:
   merge_group:
   pull_request:
-    types: [labeled]
+    types: [labeled, opened]
 
 jobs:
   build:
@@ -13,10 +13,11 @@ jobs:
     strategy:
       matrix:
         os: [ubuntu-latest, macos-latest]
-        python-version: [3.9, '3.10', '3.11']
-    uses: qiboteam/workflows/.github/workflows/rules-poetry.yml@main
+        python-version: [3.9, '3.10', '3.11', '3.12']
+    uses: qiboteam/workflows/.github/workflows/rules-poetry.yml@v1
     with:
       os: ${{ matrix.os }}
       python-version: ${{ matrix.python-version }}
-      poetry-extras: "--with test"
+      doctests: ${{ matrix.os == 'ubuntu-latest'}}
+      poetry-extras: "--with test,docs"
     secrets: inherit
