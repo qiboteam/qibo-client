@@ -10,4 +10,5 @@ token = token_path.read_text()
 # authenticate to server through the client instance
 start = time.time()
 client = Client(token)
+client.print_quota_info()
 print(f"Program done in {time.time() - start:.4f}s")

@@ -3,6 +3,7 @@
 import typing as T
 
 import qibo
+import tabulate
 
 from . import constants
 from .config_logging import logger
@@ -131,3 +132,38 @@ class Client:
             lab_location=lab_location,
             device=device,
         )
+
+    def print_quota_info(self):
+        """Logs the formatted user quota info table."""
+        url = self.base_url + "/accounts/info/quotas/"
+
+        payload = {
+            "token": self.token,
+        }
+        response = QiboApiRequest.post(
+            url,
+            json=payload,
+            timeout=constants.TIMEOUT,
+            keys_to_check=["disk_quota", "time_quotas"],
+        )
+
+        disk_quota = response.json()["disk_quota"]
+        time_quotas = response.json()["time_quotas"]
+
+        message = (
+            f"User: {disk_quota['user']['email']}\n"
+            f"Disk quota left [KBs]: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
+        )
+
+        rows = [
+            (
+                t["partition"]["lab_location"],
+                t["partition"]["device"],
+                t["seconds_left"],
+            )
+            for t in time_quotas
+        ]
+        message += tabulate.tabulate(
+            rows, headers=["Lab", "Partitions", "Time Left [s]"]
+        )
+        logger.info(message)

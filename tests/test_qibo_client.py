@@ -2,12 +2,14 @@ import logging
 
 import pytest
 import responses
+import tabulate
 
-from qibo_client import QiboJob, exceptions, qibo_client
+from qibo_client import exceptions, qibo_client
 
 MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com/api"
 FAKE_TOKEN = "fakeToken"
+FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
 FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.2.4"
 FAKE_PID = "123"
@@ -164,58 +166,39 @@ class TestQiboClient:
         for expected_message in expected_messages:
             assert expected_message in caplog.messages
 
+    @responses.activate
+    def test_print_quota_info(self, caplog):
+        caplog.set_level(logging.INFO)
 
-# @pytest.fixture
-# def results_base_folder(tmp_path: Path):
-#     results_base_folder = tmp_path / "results"
-#     results_base_folder.mkdir()
-#     with patch(f"{PKG}.constants.RESULTS_BASE_FOLDER", results_base_folder):
-#         yield results_base_folder
+        endpoint = FAKE_URL + "/accounts/info/quotas/"
+        response_json = {
+            "disk_quota": {
+                "user": {"email": FAKE_USER_EMAIL},
+                "kbs_left": 5,
+                "kbs_max": 10,
+            },
+            "time_quotas": [
+                {
+                    "partition": {
+                        "lab_location": FAKE_LAB_LOCATION,
+                        "device": FAKE_DEVICE,
+                    },
+                    "seconds_left": 1.5,
+                }
+            ],
+        }
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
 
+        rows = [(FAKE_LAB_LOCATION, FAKE_DEVICE, 1.5)]
+        expected_table = tabulate.tabulate(
+            rows, headers=["Lab", "Partitions", "Time Left [s]"]
+        )
+        expected_message = (
+            f"User: {FAKE_USER_EMAIL}\n"
+            "Disk quota left [KBs]: 5.00 / 10.00\n"
+            f"{expected_table}"
+        )
 
-# def test__post_circuit_not_successful(mock_request: Mock):
-#     def _new_side_effect(url, json, timeout):
-#         json_data = {"pid": None, "message": "post job to queue failed"}
-#         return utils.MockedResponse(status_code=200, json_data=json_data)
+        self.obj.print_quota_info()
 
-#     mock_request.post.side_effect = _new_side_effect
-
-#     client = _get_local_client()
-#     with pytest.raises(JobPostServerError):
-#         client._post_circuit(utils.MockedCircuit())
-
-
-# def test__run_circuit(mock_qibo, mock_request, mock_tempfile, results_base_folder):
-#     expected_array_path = results_base_folder / FAKE_PID / "results.npy"
-
-#     client = _get_local_client()
-#     client.pid = FAKE_PID
-#     result = client.run_circuit(utils.MockedCircuit())
-
-#     assert result == expected_array_path
-
-
-# def test__run_circuit_with_unsuccessful_post_to_queue(mock_request: Mock):
-#     def _new_side_effect(url, json, timeout):
-#         json_data = {"pid": None, "message": "post job to queue failed"}
-#         return utils.MockedResponse(status_code=200, json_data=json_data)
-
-#     mock_request.post.side_effect = _new_side_effect
-
-#     client = _get_local_client()
-#     return_value = client.run_circuit(utils.MockedCircuit())
-
-#     assert return_value is None
-
-
-# def test__run_circuit_without_waiting_for_results(mock_request: Mock):
-#     def _new_side_effect(url, json, timeout):
-#         json_data = {"pid": None, "message": "post job to queue failed"}
-#         return utils.MockedResponse(status_code=200, json_data=json_data)
-
-#     mock_request.post.side_effect = _new_side_effect
-
-#     client = _get_tii_client()
-#     return_value = client.run_circuit(utils.MockedCircuit(), wait_for_results=False)
-
-#     assert return_value is None
+        assert caplog.messages == [expected_message]
