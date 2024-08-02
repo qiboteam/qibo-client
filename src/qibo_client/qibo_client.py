@@ -167,3 +167,19 @@ class Client:
             rows, headers=["Lab", "Partitions", "Time Left [s]"]
         )
         logger.info(message)
+
+    def get_job(self, pid: str) -> QiboJob:
+        """Retrieves the job from the unique process id.
+
+        :param pid: the job's process identifier
+        :type pid: str
+
+        :return: the requested QiboJob object
+        :rtype: QiboJob
+        """
+        job = QiboJob(
+            base_url=self.base_url,
+            pid=pid,
+        )
+        job.refresh()
+        return job

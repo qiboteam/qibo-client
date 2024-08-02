@@ -4,7 +4,7 @@ import pytest
 import responses
 import tabulate
 
-from qibo_client import exceptions, qibo_client
+from qibo_client import QiboJob, QiboJobStatus, exceptions, qibo_client
 
 MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com/api"
@@ -202,3 +202,30 @@ class TestQiboClient:
         self.obj.print_quota_info()
 
         assert caplog.messages == [expected_message]
+
+    @responses.activate
+    def test_get_job(self):
+        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        response_json = {
+            "circuit": "fakeCircuit",
+            "nshots": FAKE_NSHOTS,
+            "device": {
+                "lab_location": FAKE_LAB_LOCATION,
+                "device": FAKE_DEVICE,
+            },
+            "status": "to_do",
+        }
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
+
+        result = self.obj.get_job(FAKE_PID)
+
+        expected_result = QiboJob(
+            pid=FAKE_PID,
+            base_url=FAKE_URL,
+            circuit="fakeCircuit",
+            nshots=FAKE_NSHOTS,
+            lab_location=FAKE_LAB_LOCATION,
+            device=FAKE_DEVICE,
+        )
+        expected_result._status = QiboJobStatus.QUEUED
+        assert vars(result) == vars(expected_result)
