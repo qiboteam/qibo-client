@@ -1,5 +1,6 @@
 """The module implementing the Client class."""
 
+import datetime
 import typing as T
 
 import qibo
@@ -35,7 +36,7 @@ class Client:
 
         Raise assertion error if the two versions are not the same.
         """
-        url = self.base_url + "/qibo_version/"
+        url = self.base_url + "/client/qibo_version/"
         response = QiboApiRequest.get(
             url,
             timeout=constants.TIMEOUT,
@@ -106,7 +107,7 @@ class Client:
         lab_location: str = "tii",
         device: str = "sim",
     ) -> QiboJob:
-        url = self.base_url + "/run_circuit/"
+        url = self.base_url + "/client/run_circuit/"
 
         payload = {
             "token": self.token,
@@ -168,6 +169,40 @@ class Client:
         ]
         message += tabulate.tabulate(
             rows, headers=["Lab", "Partitions", "Time Left [s]"]
+        )
+        logger.info(message)
+
+    def print_job_info(self):
+        """Logs the formatted user quota info table."""
+        url = self.base_url + "/accounts/info/jobs/"
+
+        payload = {
+            "token": self.token,
+        }
+        expected_keys = ["pid", "created_at", "updated_at", "status", "result_path"]
+        response = QiboApiRequest.post(
+            url,
+            json=payload,
+            timeout=constants.TIMEOUT,
+            keys_to_check=expected_keys,
+        )
+
+        def format_date(dt: str) -> str:
+            dt = datetime.datetime.fromisoformat(dt)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        rows = [
+            (
+                job["pid"],
+                format_date(job["created_at"]),
+                format_date(job["updated_at"]),
+                job["status"],
+                job["result_path"],
+            )
+            for job in response.json()
+        ]
+        message = "\n" + tabulate.tabulate(
+            rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
         )
         logger.info(message)
 
