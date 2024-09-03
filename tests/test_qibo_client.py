@@ -40,7 +40,7 @@ class TestQiboClient:
     @pytest.fixture
     def pass_version_check(self, monkeypatch):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": FAKE_QIBO_VERSION,
             "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
@@ -63,7 +63,7 @@ class TestQiboClient:
     ):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
 
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
             "minimum_client_qibo_version": "0.2.8",
@@ -99,7 +99,7 @@ class TestQiboClient:
         caplog.set_level(logging.WARNING)
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
 
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
             "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
@@ -114,7 +114,7 @@ class TestQiboClient:
         assert expected_log in caplog.messages
 
     def test_run_circuit_with_invalid_token(self, pass_version_check):
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         message = "User not found, specify the correct token"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
@@ -128,7 +128,7 @@ class TestQiboClient:
         assert str(err.value) == expected_message
 
     def test_run_circuit_with_job_post_error(self, pass_version_check):
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         message = "Server failed to post job to queue"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
@@ -142,7 +142,7 @@ class TestQiboClient:
 
     def test_run_circuit_with_success(self, pass_version_check, caplog):
         caplog.set_level(logging.INFO)
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
