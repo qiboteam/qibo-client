@@ -196,7 +196,7 @@ class Client:
                 "The `/accounts/info/jobs/` endpoint returned info about "
                 "multiple accounts."
             )
-        user = user[0]
+        user = list(user_set)[0]
 
         rows = [
             (

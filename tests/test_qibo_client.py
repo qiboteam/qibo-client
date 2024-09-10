@@ -204,6 +204,83 @@ class TestQiboClient:
         assert caplog.messages == [expected_message]
 
     @responses.activate
+    def test_print_job_info_with_success(self, caplog):
+        caplog.set_level(logging.INFO)
+
+        endpoint = FAKE_URL + "/accounts/info/jobs/"
+        fake_creation_date = "2000-01-01T00:00:00.128372Z"
+        formatted_creation_date = "2000-01-01 00:00:00"
+        fake_update_date = "2000-01-02T00:00:00.128372Z"
+        formatted_update_date = "2000-01-02 00:00:00"
+        fake_result_path = "fakeResult.Path"
+        response_json = [
+            {
+                "pid": FAKE_PID + "1",
+                "user": {"email": FAKE_USER_EMAIL},
+                "created_at": fake_creation_date,
+                "updated_at": fake_update_date,
+                "status": "success",
+                "result_path": fake_result_path,
+            },
+            {
+                "pid": FAKE_PID + "2",
+                "user": {"email": FAKE_USER_EMAIL},
+                "created_at": fake_creation_date,
+                "updated_at": fake_update_date,
+                "status": "error",
+                "result_path": "",
+            },
+        ]
+
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
+
+        rows = [
+            (
+                FAKE_PID + "1",
+                formatted_creation_date,
+                formatted_update_date,
+                "success",
+                fake_result_path,
+            ),
+            (
+                FAKE_PID + "2",
+                formatted_creation_date,
+                formatted_update_date,
+                "error",
+                "",
+            ),
+        ]
+        expected_table = tabulate.tabulate(
+            rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
+        )
+        expected_message = f"User: {FAKE_USER_EMAIL}\n" f"{expected_table}"
+
+        self.obj.print_job_info()
+
+        assert caplog.messages == [expected_message]
+
+    @responses.activate
+    def test_print_job_info_raises_valuerror(self, caplog):
+        caplog.set_level(logging.INFO)
+
+        endpoint = FAKE_URL + "/accounts/info/jobs/"
+        response_json = [
+            {
+                "pid": FAKE_PID + "1",
+                "user": {"email": FAKE_USER_EMAIL + "1"},
+            },
+            {
+                "pid": FAKE_PID + "2",
+                "user": {"email": FAKE_USER_EMAIL + "2"},
+            },
+        ]
+
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
+
+        with pytest.raises(ValueError):
+            self.obj.print_job_info()
+
+    @responses.activate
     def test_get_job(self):
         endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
         response_json = {
