@@ -179,17 +179,24 @@ class Client:
         payload = {
             "token": self.token,
         }
-        expected_keys = ["pid", "created_at", "updated_at", "status", "result_path"]
         response = QiboApiRequest.post(
             url,
             json=payload,
             timeout=constants.TIMEOUT,
-            keys_to_check=expected_keys,
         )
 
         def format_date(dt: str) -> str:
             dt = datetime.datetime.fromisoformat(dt)
             return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        jobs = response.json()
+        user_set = {job["user"]["email"] for job in jobs}
+        if len(user_set) > 1:
+            raise ValueError(
+                "The `/accounts/info/jobs/` endpoint returned info about "
+                "multiple accounts."
+            )
+        user = user[0]
 
         rows = [
             (
@@ -201,7 +208,7 @@ class Client:
             )
             for job in response.json()
         ]
-        message = "\n" + tabulate.tabulate(
+        message = f"User: {user}\n" + tabulate.tabulate(
             rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
         )
         logger.info(message)
