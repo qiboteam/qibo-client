@@ -170,7 +170,7 @@ class TestQiboClient:
     def test_print_quota_info(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/accounts/info/quotas/"
+        endpoint = FAKE_URL + "/client/info/quotas/"
         response_json = {
             "disk_quota": {
                 "user": {"email": FAKE_USER_EMAIL},
@@ -207,7 +207,7 @@ class TestQiboClient:
     def test_print_job_info_with_success(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/accounts/info/jobs/"
+        endpoint = FAKE_URL + "/client/info/jobs/"
         fake_creation_date = "2000-01-01T00:00:00.128372Z"
         formatted_creation_date = "2000-01-01 00:00:00"
         fake_update_date = "2000-01-02T00:00:00.128372Z"
@@ -263,7 +263,7 @@ class TestQiboClient:
     def test_print_job_info_raises_valuerror(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/accounts/info/jobs/"
+        endpoint = FAKE_URL + "/client/info/jobs/"
         response_json = [
             {
                 "pid": FAKE_PID + "1",

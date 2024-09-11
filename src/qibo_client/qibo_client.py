@@ -139,7 +139,7 @@ class Client:
 
     def print_quota_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/accounts/info/quotas/"
+        url = self.base_url + "/client/info/quotas/"
 
         payload = {
             "token": self.token,
@@ -174,7 +174,7 @@ class Client:
 
     def print_job_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/accounts/info/jobs/"
+        url = self.base_url + "/client/info/jobs/"
 
         payload = {
             "token": self.token,
@@ -193,7 +193,7 @@ class Client:
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/accounts/info/jobs/` endpoint returned info about "
+                "The `/client/info/jobs/` endpoint returned info about "
                 "multiple accounts."
             )
         user = list(user_set)[0]
