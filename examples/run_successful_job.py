@@ -6,12 +6,12 @@ import qibo
 from qibo_client import Client
 
 # create the circuit you want to run
-# circuit = qibo.models.QFT(5)
-circuit = qibo.Circuit(5)
-circuit.add(qibo.gates.M(0))
+c = qibo.Circuit(11)
+c.add(qibo.gates.GPI2(0,0))
+c.add(qibo.gates.M(10))
+result = c(nshots=100)
 
-print(circuit.draw())
-print(circuit.raw)
+print(c.draw())
 
 # read the token from file
 token_path = Path(__file__).parent / "token.txt"
