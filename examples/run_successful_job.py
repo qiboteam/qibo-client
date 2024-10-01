@@ -7,7 +7,7 @@ from qibo_client import Client
 
 # create the circuit you want to run
 c = qibo.Circuit(11)
-c.add(qibo.gates.GPI2(0,0))
+c.add(qibo.gates.GPI2(0, 0))
 c.add(qibo.gates.M(10))
 result = c(nshots=100)
 
