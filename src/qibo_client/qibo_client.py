@@ -1,8 +1,8 @@
 """The module implementing the Client class."""
 
-import datetime
 import typing as T
 
+import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
@@ -186,7 +186,7 @@ class Client:
         )
 
         def format_date(dt: str) -> str:
-            dt = datetime.datetime.fromisoformat(dt)
+            dt = dateutil.parser.isoparse(dt)
             return dt.strftime("%Y-%m-%d %H:%M:%S")
 
         jobs = response.json()
