@@ -40,7 +40,7 @@ class TestQiboClient:
     @pytest.fixture
     def pass_version_check(self, monkeypatch):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": FAKE_QIBO_VERSION,
             "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
@@ -63,7 +63,7 @@ class TestQiboClient:
     ):
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
 
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
             "minimum_client_qibo_version": "0.2.8",
@@ -99,7 +99,7 @@ class TestQiboClient:
         caplog.set_level(logging.WARNING)
         monkeypatch.setattr(f"{MOD}.qibo.__version__", FAKE_QIBO_VERSION)
 
-        endpoint = FAKE_URL + "/qibo_version/"
+        endpoint = FAKE_URL + "/client/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
             "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
@@ -114,7 +114,7 @@ class TestQiboClient:
         assert expected_log in caplog.messages
 
     def test_run_circuit_with_invalid_token(self, pass_version_check):
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         message = "User not found, specify the correct token"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
@@ -128,7 +128,7 @@ class TestQiboClient:
         assert str(err.value) == expected_message
 
     def test_run_circuit_with_job_post_error(self, pass_version_check):
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         message = "Server failed to post job to queue"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
@@ -142,7 +142,7 @@ class TestQiboClient:
 
     def test_run_circuit_with_success(self, pass_version_check, caplog):
         caplog.set_level(logging.INFO)
-        endpoint = FAKE_URL + "/run_circuit/"
+        endpoint = FAKE_URL + "/client/run_circuit/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
@@ -170,7 +170,7 @@ class TestQiboClient:
     def test_print_quota_info(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/accounts/info/quotas/"
+        endpoint = FAKE_URL + "/client/info/quotas/"
         response_json = {
             "disk_quota": {
                 "user": {"email": FAKE_USER_EMAIL},
@@ -202,6 +202,83 @@ class TestQiboClient:
         self.obj.print_quota_info()
 
         assert caplog.messages == [expected_message]
+
+    @responses.activate
+    def test_print_job_info_with_success(self, caplog):
+        caplog.set_level(logging.INFO)
+
+        endpoint = FAKE_URL + "/client/info/jobs/"
+        fake_creation_date = "2000-01-01T00:00:00.128372Z"
+        formatted_creation_date = "2000-01-01 00:00:00"
+        fake_update_date = "2000-01-02T00:00:00.128372Z"
+        formatted_update_date = "2000-01-02 00:00:00"
+        fake_result_path = "fakeResult.Path"
+        response_json = [
+            {
+                "pid": FAKE_PID + "1",
+                "user": {"email": FAKE_USER_EMAIL},
+                "created_at": fake_creation_date,
+                "updated_at": fake_update_date,
+                "status": "success",
+                "result_path": fake_result_path,
+            },
+            {
+                "pid": FAKE_PID + "2",
+                "user": {"email": FAKE_USER_EMAIL},
+                "created_at": fake_creation_date,
+                "updated_at": fake_update_date,
+                "status": "error",
+                "result_path": "",
+            },
+        ]
+
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
+
+        rows = [
+            (
+                FAKE_PID + "1",
+                formatted_creation_date,
+                formatted_update_date,
+                "success",
+                fake_result_path,
+            ),
+            (
+                FAKE_PID + "2",
+                formatted_creation_date,
+                formatted_update_date,
+                "error",
+                "",
+            ),
+        ]
+        expected_table = tabulate.tabulate(
+            rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
+        )
+        expected_message = f"User: {FAKE_USER_EMAIL}\n" f"{expected_table}"
+
+        self.obj.print_job_info()
+
+        assert caplog.messages == [expected_message]
+
+    @responses.activate
+    def test_print_job_info_raises_valuerror(self, caplog):
+        caplog.set_level(logging.INFO)
+
+        endpoint = FAKE_URL + "/client/info/jobs/"
+        response_json = [
+            {
+                "pid": FAKE_PID + "1",
+                "user": {"email": FAKE_USER_EMAIL + "1"},
+            },
+            {
+                "pid": FAKE_PID + "2",
+                "user": {"email": FAKE_USER_EMAIL + "2"},
+            },
+        ]
+
+        responses.add(responses.POST, endpoint, status=200, json=response_json)
+
+        with pytest.raises(ValueError):
+            self.obj.print_job_info()
 
     @responses.activate
     def test_get_job(self):

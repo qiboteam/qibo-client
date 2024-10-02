@@ -2,6 +2,7 @@
 
 import typing as T
 
+import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
@@ -35,7 +36,7 @@ class Client:
 
         Raise assertion error if the two versions are not the same.
         """
-        url = self.base_url + "/qibo_version/"
+        url = self.base_url + "/client/qibo_version/"
         response = QiboApiRequest.get(
             url,
             timeout=constants.TIMEOUT,
@@ -106,7 +107,7 @@ class Client:
         lab_location: str = "tii",
         device: str = "sim",
     ) -> QiboJob:
-        url = self.base_url + "/run_circuit/"
+        url = self.base_url + "/client/run_circuit/"
 
         payload = {
             "token": self.token,
@@ -138,7 +139,7 @@ class Client:
 
     def print_quota_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/accounts/info/quotas/"
+        url = self.base_url + "/client/info/quotas/"
 
         payload = {
             "token": self.token,
@@ -168,6 +169,47 @@ class Client:
         ]
         message += tabulate.tabulate(
             rows, headers=["Lab", "Partitions", "Time Left [s]"]
+        )
+        logger.info(message)
+
+    def print_job_info(self):
+        """Logs the formatted user quota info table."""
+        url = self.base_url + "/client/info/jobs/"
+
+        payload = {
+            "token": self.token,
+        }
+        response = QiboApiRequest.post(
+            url,
+            json=payload,
+            timeout=constants.TIMEOUT,
+        )
+
+        def format_date(dt: str) -> str:
+            dt = dateutil.parser.isoparse(dt)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        jobs = response.json()
+        user_set = {job["user"]["email"] for job in jobs}
+        if len(user_set) > 1:
+            raise ValueError(
+                "The `/client/info/jobs/` endpoint returned info about "
+                "multiple accounts."
+            )
+        user = list(user_set)[0]
+
+        rows = [
+            (
+                job["pid"],
+                format_date(job["created_at"]),
+                format_date(job["updated_at"]),
+                job["status"],
+                job["result_path"],
+            )
+            for job in response.json()
+        ]
+        message = f"User: {user}\n" + tabulate.tabulate(
+            rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
         )
         logger.info(message)
 
