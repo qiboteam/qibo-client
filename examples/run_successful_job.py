@@ -6,12 +6,11 @@ import qibo
 from qibo_client import Client
 
 # create the circuit you want to run
-c = qibo.Circuit(11)
-c.add(qibo.gates.GPI2(0, 0))
-c.add(qibo.gates.M(10))
-result = c(nshots=100)
+circuit = qibo.Circuit(11)
+circuit.add(qibo.gates.GPI2(0, 0))
+circuit.add(qibo.gates.M(10))
 
-print(c.draw())
+print(circuit.draw())
 
 # read the token from file
 token_path = Path(__file__).parent / "token.txt"
@@ -23,6 +22,6 @@ client = Client(token)
 # run the circuit
 print(f"{'*'*20}\nPost circuit")
 start = time.time()
-job = client.run_circuit(circuit, nshots=100, device="sim")
+job = client.run_circuit(circuit, nshots=100, device="k2")
 print(job.result())
 print(f"Program done in {time.time() - start:.4f}s")
