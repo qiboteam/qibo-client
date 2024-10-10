@@ -169,7 +169,7 @@ class Client:
         message += tabulate.tabulate(
             rows,
             headers=[
-                "Name",
+                "Device Name",
                 "Qubits",
                 "Type",
                 "Description",
@@ -198,7 +198,7 @@ class Client:
 
         jobs = response.json()
         if not len(jobs):
-            print("No jobs found in database for user")
+            logger.info("No jobs found in database for user")
             return None
 
         user_set = {job["user"]["email"] for job in jobs}
