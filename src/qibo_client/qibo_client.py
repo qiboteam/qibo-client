@@ -68,8 +68,7 @@ class Client:
         self,
         circuit: qibo.Circuit,
         nshots: int = 1000,
-        lab_location: str = "tii",
-        device: str = "sim",
+        device: str = "k2",
     ) -> T.Optional[qibo.result.QuantumState]:
         """Run circuit on the cluster.
 
@@ -90,7 +89,7 @@ class Client:
         self.check_client_server_qibo_versions()
 
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, nshots, lab_location, device)
+        job = self._post_circuit(circuit, nshots, device)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -104,7 +103,6 @@ class Client:
         self,
         circuit: qibo.Circuit,
         nshots: int = 100,
-        lab_location: str = "tii",
         device: str = "sim",
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
@@ -113,7 +111,6 @@ class Client:
             "token": self.token,
             "circuit": circuit.raw,
             "nshots": nshots,
-            "lab_location": lab_location,
             "device": device,
         }
         response = QiboApiRequest.post(
@@ -133,7 +130,6 @@ class Client:
             pid=self.pid,
             circuit=circuit.raw,
             nshots=nshots,
-            lab_location=lab_location,
             device=device,
         )
 
@@ -161,14 +157,25 @@ class Client:
 
         rows = [
             (
-                t["partition"]["lab_location"],
-                t["partition"]["device"],
+                t["partition"]["name"],
+                t["partition"]["max_num_qubits"],
+                t["partition"]["hardware_type"],
+                t["partition"]["description"],
+                t["partition"]["status"],
                 t["seconds_left"],
             )
             for t in time_quotas
         ]
         message += tabulate.tabulate(
-            rows, headers=["Lab", "Partitions", "Time Left [s]"]
+            rows,
+            headers=[
+                "Name",
+                "Qubits",
+                "Type",
+                "Description",
+                "Status",
+                "Time Left [s]",
+            ],
         )
         logger.info(message)
 
@@ -190,6 +197,10 @@ class Client:
             return dt.strftime("%Y-%m-%d %H:%M:%S")
 
         jobs = response.json()
+        if not len(jobs):
+            print("No jobs found in database for user")
+            return None
+
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(

@@ -76,14 +76,12 @@ class QiboJob:
         base_url: str = constants.BASE_URL,
         circuit: T.Optional[qibo.Circuit] = None,
         nshots: T.Optional[int] = None,
-        lab_location: T.Optional[str] = None,
         device: T.Optional[str] = None,
     ):
         self.base_url = base_url
         self.pid = pid
         self.circuit = circuit
         self.nshots = nshots
-        self.lab_location = lab_location
         self.device = device
 
         self._status = None
@@ -107,8 +105,7 @@ class QiboJob:
     def _update_job_info(self, info: T.Dict):
         self.circuit = info.get("circuit")
         self.nshots = info.get("nshots")
-        self.lab_location = info["device"].get("lab_location")
-        self.device = info["device"].get("device")
+        self.device = info["device"].get("name")
         self._status = convert_str_to_job_status(info["status"])
 
     def status(self) -> QiboJobStatus:
