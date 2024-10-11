@@ -76,9 +76,9 @@ class Client:
         :type circuit: Circuit
         :param nshots: number of shots
         :type nshots: int
-        :param device: the device to run the circuit on. Default device is `sim`
+        :param device: the device to run the circuit on. Default device is `k2`
         :type device: str
-        :param wait_for_results: wheter to let the client hang until server results are ready or not. Defaults to True.
+        :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
 
         :return:
@@ -103,7 +103,7 @@ class Client:
         self,
         circuit: qibo.Circuit,
         nshots: int = 100,
-        device: str = "sim",
+        device: str = "k2",
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
 
