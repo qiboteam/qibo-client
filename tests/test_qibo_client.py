@@ -24,8 +24,11 @@ class FakeCircuit:
 
 FAKE_CIRCUIT = FakeCircuit()
 FAKE_NSHOTS = 10
-FAKE_LAB_LOCATION = "fakeLabLocation"
 FAKE_DEVICE = "fakeDevice"
+FAKE_NUM_QUBITS = 8
+FAKE_HARDWARE_TYPE = "fakeHardwareType"
+FAKE_DESCRIPTION = "fakeDescription"
+FAKE_STATUS = "fakeStatus"
 
 
 class TestQiboClient:
@@ -120,9 +123,7 @@ class TestQiboClient:
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
 
         with pytest.raises(exceptions.JobApiError) as err:
-            self.obj.run_circuit(
-                FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
-            )
+            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
 
         expected_message = f"[404 Error] {message}"
         assert str(err.value) == expected_message
@@ -134,9 +135,7 @@ class TestQiboClient:
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
         with pytest.raises(exceptions.JobPostServerError) as err:
-            self.obj.run_circuit(
-                FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
-            )
+            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
 
         assert str(err.value) == message
 
@@ -146,15 +145,12 @@ class TestQiboClient:
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(
-            FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_LAB_LOCATION, FAKE_DEVICE
-        )
+        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
         assert job.circuit == "fakeCircuit"
         assert job.nshots == FAKE_NSHOTS
-        assert job.lab_location == FAKE_LAB_LOCATION
         assert job.device == FAKE_DEVICE
         assert job._status is None
 
@@ -180,8 +176,11 @@ class TestQiboClient:
             "time_quotas": [
                 {
                     "partition": {
-                        "lab_location": FAKE_LAB_LOCATION,
-                        "device": FAKE_DEVICE,
+                        "name": FAKE_DEVICE,
+                        "max_num_qubits": FAKE_NUM_QUBITS,
+                        "hardware_type": FAKE_HARDWARE_TYPE,
+                        "description": FAKE_DESCRIPTION,
+                        "status": FAKE_STATUS,
                     },
                     "seconds_left": 1.5,
                 }
@@ -189,9 +188,26 @@ class TestQiboClient:
         }
         responses.add(responses.POST, endpoint, status=200, json=response_json)
 
-        rows = [(FAKE_LAB_LOCATION, FAKE_DEVICE, 1.5)]
+        rows = [
+            (
+                FAKE_DEVICE,
+                FAKE_NUM_QUBITS,
+                FAKE_HARDWARE_TYPE,
+                FAKE_DESCRIPTION,
+                FAKE_STATUS,
+                1.5,
+            )
+        ]
         expected_table = tabulate.tabulate(
-            rows, headers=["Lab", "Partitions", "Time Left [s]"]
+            rows,
+            headers=[
+                "Device Name",
+                "Qubits",
+                "Type",
+                "Description",
+                "Status",
+                "Time Left [s]",
+            ],
         )
         expected_message = (
             f"User: {FAKE_USER_EMAIL}\n"
@@ -206,7 +222,6 @@ class TestQiboClient:
     @responses.activate
     def test_print_job_info_with_success(self, caplog):
         caplog.set_level(logging.INFO)
-
         endpoint = FAKE_URL + "/client/info/jobs/"
         fake_creation_date = "2000-01-01T00:00:00.128372Z"
         formatted_creation_date = "2000-01-01 00:00:00"
@@ -260,6 +275,16 @@ class TestQiboClient:
         assert caplog.messages == [expected_message]
 
     @responses.activate
+    def test_print_job_info_without_jobs(self, caplog):
+        caplog.set_level(logging.INFO)
+        endpoint = FAKE_URL + "/client/info/jobs/"
+        responses.add(responses.POST, endpoint, status=200, json=[])
+
+        self.obj.print_job_info()
+
+        assert caplog.messages == ["No jobs found in database for user"]
+
+    @responses.activate
     def test_print_job_info_raises_valuerror(self, caplog):
         caplog.set_level(logging.INFO)
 
@@ -287,8 +312,11 @@ class TestQiboClient:
             "circuit": "fakeCircuit",
             "nshots": FAKE_NSHOTS,
             "device": {
-                "lab_location": FAKE_LAB_LOCATION,
-                "device": FAKE_DEVICE,
+                "name": FAKE_DEVICE,
+                "max_num_qubits": FAKE_NUM_QUBITS,
+                "hardware_type": FAKE_HARDWARE_TYPE,
+                "description": None,
+                "status": FAKE_STATUS,
             },
             "status": "to_do",
         }
@@ -301,7 +329,6 @@ class TestQiboClient:
             base_url=FAKE_URL,
             circuit="fakeCircuit",
             nshots=FAKE_NSHOTS,
-            lab_location=FAKE_LAB_LOCATION,
             device=FAKE_DEVICE,
         )
         expected_result._status = QiboJobStatus.QUEUED

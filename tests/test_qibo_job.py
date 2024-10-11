@@ -142,8 +142,11 @@ FAKE_PID = "fakePid"
 FAKE_URL = "http://fake.endpoint.com/api"
 FAKE_CIRCUIT = "fakeCircuit"
 FAKE_NSHOTS = 10
-FAKE_LAB_LOCATION = "fakeLabLocation"
 FAKE_DEVICE = "fakeDevice"
+FAKE_NUM_QUBITS = 8
+FAKE_HARDWARE_TYPE = "fakeHardwareType"
+FAKE_DESCRIPTION = "fakeDescription"
+FAKE_STATUS = "fakeStatus"
 BASE_JOB_STATUS = QiboJobStatus.DONE
 BASE_JOB_STATUS_STR = "success"
 FAKE_RESULT = "fakeResult"
@@ -163,8 +166,11 @@ class TestQiboJob:
             "circuit": FAKE_CIRCUIT,
             "nshots": FAKE_NSHOTS,
             "device": {
-                "lab_location": FAKE_LAB_LOCATION,
-                "device": FAKE_DEVICE,
+                "name": FAKE_DEVICE,
+                "max_num_qubits": FAKE_NUM_QUBITS,
+                "hardware_type": FAKE_HARDWARE_TYPE,
+                "description": None,
+                "status": FAKE_STATUS,
             },
             "status": BASE_JOB_STATUS_STR,
         }
@@ -176,14 +182,12 @@ class TestQiboJob:
         assert self.obj.base_url == FAKE_URL
         assert self.obj.circuit is None
         assert self.obj.nshots is None
-        assert self.obj.lab_location is None
         assert self.obj.device is None
         assert self.obj._status is None
 
     def test_refresh_with_success(self, refresh_job):
         assert self.obj.circuit == FAKE_CIRCUIT
         assert self.obj.nshots == FAKE_NSHOTS
-        assert self.obj.lab_location == FAKE_LAB_LOCATION
         assert self.obj.device == FAKE_DEVICE
         assert self.obj._status == BASE_JOB_STATUS
 

@@ -1,3 +1,4 @@
+import time
 from pathlib import Path
 
 import qibo
@@ -17,6 +18,6 @@ client = Client(token)
 # run the circuit
 print(f"{'*'*20}\nPost first circuit")
 start = time.time()
-job = client.run_circuit(circuit, nshots=100, device="sim")
+job = client.run_circuit(circuit, nshots=100, device="k2")
 print(job.result())
 print(f"Program done in {time.time() - start:.4f}s")
