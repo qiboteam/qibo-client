@@ -148,19 +148,22 @@ class TestQiboClient:
 
         assert str(err.value) == message
 
-    def test_run_circuit_with_success(self, pass_version_check, caplog):
+    @pytest.mark.parametrize(
+        "device,nshots", [("k2", None), (FAKE_DEVICE, FAKE_NSHOTS)]
+    )
+    def test_run_circuit_with_success(self, pass_version_check, caplog, device, nshots):
         caplog.set_level(logging.INFO)
         endpoint = FAKE_URL + "/client/run_circuit/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
+        job = self.obj.run_circuit(FAKE_CIRCUIT, nshots, device)
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
         assert job.circuit == "fakeCircuit"
-        assert job.nshots == FAKE_NSHOTS
-        assert job.device == FAKE_DEVICE
+        assert job.nshots == nshots if nshots is not None else 100
+        assert job.device == device
         assert job._status is None
 
         expected_messages = [
