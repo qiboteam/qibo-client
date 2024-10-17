@@ -17,12 +17,21 @@ TIMEOUT = 1
 
 
 class FakeCircuit:
+    def __init__(self, measurements: list[int] = None):
+        self._measurements = [] if measurements is None else measurements
+
     @property
     def raw(self):
         return "fakeCircuit"
 
+    @property
+    def measurements(
+        self,
+    ):
+        return self._measurements
 
-FAKE_CIRCUIT = FakeCircuit()
+
+FAKE_CIRCUIT = FakeCircuit([0, 1, 2])
 FAKE_NSHOTS = 10
 FAKE_DEVICE = "fakeDevice"
 FAKE_NUM_QUBITS = 8
@@ -139,19 +148,22 @@ class TestQiboClient:
 
         assert str(err.value) == message
 
-    def test_run_circuit_with_success(self, pass_version_check, caplog):
+    @pytest.mark.parametrize(
+        "device,nshots", [("k2", None), (FAKE_DEVICE, FAKE_NSHOTS)]
+    )
+    def test_run_circuit_with_success(self, pass_version_check, caplog, device, nshots):
         caplog.set_level(logging.INFO)
         endpoint = FAKE_URL + "/client/run_circuit/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
+        job = self.obj.run_circuit(FAKE_CIRCUIT, nshots, device)
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
         assert job.circuit == "fakeCircuit"
-        assert job.nshots == FAKE_NSHOTS
-        assert job.device == FAKE_DEVICE
+        assert job.nshots == nshots if nshots is not None else 100
+        assert job.device == device
         assert job._status is None
 
         expected_messages = [
@@ -333,3 +345,18 @@ class TestQiboClient:
         )
         expected_result._status = QiboJobStatus.QUEUED
         assert vars(result) == vars(expected_result)
+
+    def test_no_measurements_error(self, pass_version_check):
+        circuit = FakeCircuit()
+        with pytest.raises(
+            RuntimeError,
+            match="No measurement found in the input circuit. Measurements are mandatory on non-simulation devices.",
+        ):
+            job = self.obj.run_circuit(circuit, FAKE_NSHOTS, FAKE_DEVICE)
+
+    def test_no_nshots_error(self, pass_version_check):
+        with pytest.raises(
+            RuntimeError,
+            match="No number of shots defined. The total number of shots has to be defined when running on non-simulation devices.",
+        ):
+            job = self.obj.run_circuit(FAKE_CIRCUIT, None, FAKE_DEVICE)

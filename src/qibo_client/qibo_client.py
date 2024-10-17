@@ -6,6 +6,7 @@ import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
+from qibo.config import raise_error
 
 from . import constants
 from .config_logging import logger
@@ -67,14 +68,20 @@ class Client:
     def run_circuit(
         self,
         circuit: qibo.Circuit,
-        nshots: int = 1000,
+        nshots: int = None,
         device: str = "k2",
-    ) -> T.Optional[qibo.result.QuantumState]:
+    ) -> T.Optional[
+        T.Union[
+            qibo.result.QuantumState,
+            qibo.result.MeasurementOutcomes,
+            qibo.result.CircuitResult,
+        ]
+    ]:
         """Run circuit on the cluster.
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots
+        :param nshots: number of shots, mandatory for non-simulation devices
         :type nshots: int
         :param device: the device to run the circuit on. Default device is `k2`
         :type device: str
@@ -82,11 +89,23 @@ class Client:
         :type wait_for_results: bool
 
         :return:
-            the numpy array with the results of the computation. None if the job
+            the result of the computation. None if the job
             raised an error.
         :rtype: Optional[QiboJobResult]
         """
         self.check_client_server_qibo_versions()
+
+        if device != "k2":
+            if len(circuit.measurements) == 0:
+                raise_error(
+                    RuntimeError,
+                    "No measurement found in the input circuit. Measurements are mandatory on non-simulation devices.",
+                )
+            elif nshots is None:
+                raise_error(
+                    RuntimeError,
+                    "No number of shots defined. The total number of shots has to be defined when running on non-simulation devices.",
+                )
 
         logger.info("Post new circuit on the server")
         job = self._post_circuit(circuit, nshots, device)
@@ -102,10 +121,13 @@ class Client:
     def _post_circuit(
         self,
         circuit: qibo.Circuit,
-        nshots: int = 100,
+        nshots: int = None,
         device: str = "k2",
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
+
+        if nshots is None:
+            nshots = 100
 
         payload = {
             "token": self.token,
