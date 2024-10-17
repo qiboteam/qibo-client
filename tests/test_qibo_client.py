@@ -17,12 +17,21 @@ TIMEOUT = 1
 
 
 class FakeCircuit:
+    def __init__(self, measurements: list[int] = None):
+        self._measurements = [] if measurements is None else measurements
+
     @property
     def raw(self):
         return "fakeCircuit"
 
+    @property
+    def measurements(
+        self,
+    ):
+        return self._measurements
 
-FAKE_CIRCUIT = FakeCircuit()
+
+FAKE_CIRCUIT = FakeCircuit([0, 1, 2])
 FAKE_NSHOTS = 10
 FAKE_DEVICE = "fakeDevice"
 FAKE_NUM_QUBITS = 8
@@ -333,3 +342,18 @@ class TestQiboClient:
         )
         expected_result._status = QiboJobStatus.QUEUED
         assert vars(result) == vars(expected_result)
+
+    def test_no_measurements_error(self, pass_version_check):
+        circuit = FakeCircuit()
+        with pytest.raises(
+            RuntimeError,
+            match="No measurement found in the input circuit. Measurements are mandatory on non-simulation devices.",
+        ):
+            job = self.obj.run_circuit(circuit, FAKE_NSHOTS, FAKE_DEVICE)
+
+    def test_no_nshots_error(self, pass_version_check):
+        with pytest.raises(
+            RuntimeError,
+            match="No number of shots defined. The total number of shots has to be defined when running on non-simulation devices.",
+        ):
+            job = self.obj.run_circuit(FAKE_CIRCUIT, None, FAKE_DEVICE)
