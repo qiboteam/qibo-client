@@ -6,7 +6,6 @@ import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
-from qibo.config import raise_error
 
 from . import constants
 from .config_logging import logger
@@ -68,8 +67,8 @@ class Client:
     def run_circuit(
         self,
         circuit: qibo.Circuit,
+        device: str,
         nshots: int = None,
-        device: str = "k2",
     ) -> T.Optional[
         T.Union[
             qibo.result.QuantumState,
@@ -83,7 +82,7 @@ class Client:
         :type circuit: Circuit
         :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
         :type nshots: int
-        :param device: the device to run the circuit on. Default device is `k2`
+        :param device: the device to run the circuit on.
         :type device: str
         :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
@@ -95,7 +94,7 @@ class Client:
         """
         self.check_client_server_qibo_versions()
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, nshots, device)
+        job = self._post_circuit(circuit, device, nshots)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -108,8 +107,8 @@ class Client:
     def _post_circuit(
         self,
         circuit: qibo.Circuit,
+        device: str,
         nshots: int = None,
-        device: str = "k2",
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
 

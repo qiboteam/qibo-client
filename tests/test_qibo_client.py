@@ -17,21 +17,13 @@ TIMEOUT = 1
 
 
 class FakeCircuit:
-    def __init__(self, measurements: list[int] = None):
-        self._measurements = [] if measurements is None else measurements
 
     @property
     def raw(self):
         return "fakeCircuit"
 
-    @property
-    def measurements(
-        self,
-    ):
-        return self._measurements
 
-
-FAKE_CIRCUIT = FakeCircuit([0, 1, 2])
+FAKE_CIRCUIT = FakeCircuit()
 FAKE_NSHOTS = 10
 FAKE_DEVICE = "fakeDevice"
 FAKE_NUM_QUBITS = 8
@@ -132,7 +124,7 @@ class TestQiboClient:
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
 
         with pytest.raises(exceptions.JobApiError) as err:
-            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
+            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
         expected_message = f"[404 Error] {message}"
         assert str(err.value) == expected_message
@@ -144,26 +136,23 @@ class TestQiboClient:
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
         with pytest.raises(exceptions.JobPostServerError) as err:
-            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_NSHOTS, FAKE_DEVICE)
+            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
         assert str(err.value) == message
 
-    @pytest.mark.parametrize(
-        "device,nshots", [("k2", None), (FAKE_DEVICE, FAKE_NSHOTS)]
-    )
-    def test_run_circuit_with_success(self, pass_version_check, caplog, device, nshots):
+    def test_run_circuit_with_success(self, pass_version_check, caplog):
         caplog.set_level(logging.INFO)
         endpoint = FAKE_URL + "/client/run_circuit/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(FAKE_CIRCUIT, nshots, device)
+        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
         assert job.circuit == "fakeCircuit"
-        assert job.nshots == nshots if nshots is not None else 100
-        assert job.device == device
+        assert job.nshots == FAKE_NSHOTS
+        assert job.device == FAKE_DEVICE
         assert job._status is None
 
         expected_messages = [
