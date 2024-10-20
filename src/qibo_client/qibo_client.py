@@ -81,7 +81,7 @@ class Client:
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots, mandatory for non-simulation devices
+        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
         :type nshots: int
         :param device: the device to run the circuit on. Default device is `k2`
         :type device: str
@@ -94,19 +94,6 @@ class Client:
         :rtype: Optional[QiboJobResult]
         """
         self.check_client_server_qibo_versions()
-
-        if device != "k2":
-            if len(circuit.measurements) == 0:
-                raise_error(
-                    RuntimeError,
-                    "No measurement found in the input circuit. Measurements are mandatory on non-simulation devices.",
-                )
-            elif nshots is None:
-                raise_error(
-                    RuntimeError,
-                    "No number of shots defined. The total number of shots has to be defined when running on non-simulation devices.",
-                )
-
         logger.info("Post new circuit on the server")
         job = self._post_circuit(circuit, nshots, device)
 
@@ -125,9 +112,6 @@ class Client:
         device: str = "k2",
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
-
-        if nshots is None:
-            nshots = 100
 
         payload = {
             "token": self.token,

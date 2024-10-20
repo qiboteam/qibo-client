@@ -345,18 +345,3 @@ class TestQiboClient:
         )
         expected_result._status = QiboJobStatus.QUEUED
         assert vars(result) == vars(expected_result)
-
-    def test_no_measurements_error(self, pass_version_check):
-        circuit = FakeCircuit()
-        with pytest.raises(
-            RuntimeError,
-            match="No measurement found in the input circuit. Measurements are mandatory on non-simulation devices.",
-        ):
-            job = self.obj.run_circuit(circuit, FAKE_NSHOTS, FAKE_DEVICE)
-
-    def test_no_nshots_error(self, pass_version_check):
-        with pytest.raises(
-            RuntimeError,
-            match="No number of shots defined. The total number of shots has to be defined when running on non-simulation devices.",
-        ):
-            job = self.obj.run_circuit(FAKE_CIRCUIT, None, FAKE_DEVICE)
