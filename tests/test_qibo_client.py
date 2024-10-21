@@ -319,7 +319,7 @@ class TestQiboClient:
                 "description": None,
                 "status": FAKE_STATUS,
             },
-            "status": "to_do",
+            "status": "queueing",
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
@@ -332,5 +332,5 @@ class TestQiboClient:
             nshots=FAKE_NSHOTS,
             device=FAKE_DEVICE,
         )
-        expected_result._status = QiboJobStatus.QUEUED
+        expected_result._status = QiboJobStatus.QUEUEING
         assert vars(result) == vars(expected_result)
