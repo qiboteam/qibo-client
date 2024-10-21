@@ -32,7 +32,8 @@ obtain the needed token to run computations on the cluster.
 
 The following snippet provides a basic usage example.
 Replace the `your-token` string with your user token received during the
-registration process.
+registration process. To check which devices are available with your account
+please visit the dashboard at [https://cloud.qibo.science/](https://cloud.qibo.science/).
 
 ```python
 import qibo
@@ -46,7 +47,8 @@ token = "your-token"
 client = qibo_client.Client(token)
 
 # run the circuit
-job = client.run_circuit(circuit, nshots=1000, device="k2")
+device = "device_name"
+job = client.run_circuit(circuit, nshots=1000, device=device)
 result = job.result()
 print(result)
 ```
