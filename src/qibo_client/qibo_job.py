@@ -203,7 +203,7 @@ class QiboJob:
             job_status = convert_str_to_job_status(response.headers["Job-Status"])
 
             if verbose and job_status == QiboJobStatus.QUEUEING:
-                logger.info("Job QUEUING")
+                logger.info("Job QUEUEING")
             if verbose and job_status == QiboJobStatus.PENDING:
                 logger.info("Job PENDING")
             if verbose and job_status == QiboJobStatus.RUNNING:
