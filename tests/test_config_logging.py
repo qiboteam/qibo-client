@@ -19,9 +19,10 @@ def logging_wrap_function(logger_object):
 )
 def test_logger_levels(monkeypatch, caplog, loglevel, expected_messages):
     monkeypatch.setenv("QIBO_CLIENT_LOGGER_LEVEL", loglevel)
-    caplog.set_level(loglevel)
 
     from qibo_client.config_logging import logger
+
+    caplog.set_level(loglevel, MOD)
 
     logging_wrap_function(logger)
 
