@@ -189,7 +189,10 @@ class QiboJob:
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
-        is_job_finished = self.status() not in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]
+        is_job_finished = self.status() not in [
+            QiboJobStatus.SUCCESS,
+            QiboJobStatus.ERROR,
+        ]
         if not verbose and is_job_finished:
             logger.info("Please wait until your job is completed...")
 
