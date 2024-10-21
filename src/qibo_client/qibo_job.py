@@ -18,9 +18,11 @@ def convert_str_to_job_status(status: str):
 
 
 class QiboJobStatus(Enum):
-    QUEUED = "to_do"
-    RUNNING = "in_progress"
-    DONE = "success"
+    QUEUEING = "queueing"
+    PENDING = "pending"
+    RUNNING = "running"
+    POSTPROCESSING = "postprocessing"
+    SUCCESS = "success"
     ERROR = "error"
 
 
@@ -122,10 +124,10 @@ class QiboJob:
             self.refresh()
         return self._status is QiboJobStatus.RUNNING
 
-    def done(self) -> bool:
+    def success(self) -> bool:
         if self._status is None:
             self.refresh()
-        return self._status is QiboJobStatus.DONE
+        return self._status is QiboJobStatus.SUCCESS
 
     def result(
         self, wait: int = 5, verbose: bool = False
@@ -187,7 +189,7 @@ class QiboJob:
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
-        is_job_finished = self.status() not in [QiboJobStatus.DONE, QiboJobStatus.ERROR]
+        is_job_finished = self.status() not in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]
         if not verbose and is_job_finished:
             logger.info("Please wait until your job is completed...")
 
@@ -196,12 +198,20 @@ class QiboJob:
         while True:
             response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
             job_status = convert_str_to_job_status(response.headers["Job-Status"])
-            if verbose and job_status == QiboJobStatus.QUEUED:
-                logger.info("Job QUEUING")
-            if verbose and job_status == QiboJobStatus.RUNNING:
-                logger.info("Job RUNNING")
-            if job_status in [QiboJobStatus.DONE, QiboJobStatus.ERROR]:
-                if verbose:
-                    logger.info("Job COMPLETED")
+            if verbose:
+                match job_status:
+                    case QiboJobStatus.QUEUEING:
+                        logger.info("Job QUEUEING")
+                    case QiboJobStatus.PENDING:
+                        logger.info("Job PENDING")
+                    case QiboJobStatus.RUNNING:
+                        logger.info("Job RUNNING")
+                    case QiboJobStatus.POSTPROCESSING:
+                        logger.info("Job POSTPROCESSING")
+                    case QiboJobStatus.SUCCESS:
+                        logger.info("Job COMPLETED")
+                    case QiboJobStatus.ERROR:
+                        logger.info("Job COMPLETED")
+            if job_status in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]:
                 return response, job_status
             time.sleep(seconds_between_checks)

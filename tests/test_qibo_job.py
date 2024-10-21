@@ -14,9 +14,11 @@ ARCHIVE_NAME = "file.tar.gz"
 @pytest.mark.parametrize(
     "status, expected_result",
     [
-        ("to_do", QiboJobStatus.QUEUED),
-        ("in_progress", QiboJobStatus.RUNNING),
-        ("success", QiboJobStatus.DONE),
+        ("queueing", QiboJobStatus.QUEUEING),
+        ("pending", QiboJobStatus.PENDING),
+        ("running", QiboJobStatus.RUNNING),
+        ("postprocessing", QiboJobStatus.POSTPROCESSING),
+        ("success", QiboJobStatus.SUCCESS),
         ("error", QiboJobStatus.ERROR),
         ("done", None),
         ("invalid", None),
@@ -147,7 +149,7 @@ FAKE_NUM_QUBITS = 8
 FAKE_HARDWARE_TYPE = "fakeHardwareType"
 FAKE_DESCRIPTION = "fakeDescription"
 FAKE_STATUS = "fakeStatus"
-BASE_JOB_STATUS = QiboJobStatus.DONE
+BASE_JOB_STATUS = QiboJobStatus.SUCCESS
 BASE_JOB_STATUS_STR = "success"
 FAKE_RESULT = "fakeResult"
 
@@ -208,9 +210,11 @@ class TestQiboJob:
     @pytest.mark.parametrize(
         "status, expected_result",
         [
-            ("to_do", QiboJobStatus.QUEUED),
-            ("in_progress", QiboJobStatus.RUNNING),
-            ("success", QiboJobStatus.DONE),
+            ("queueing", QiboJobStatus.QUEUEING),
+            ("pending", QiboJobStatus.PENDING),
+            ("running", QiboJobStatus.RUNNING),
+            ("postprocessing", QiboJobStatus.POSTPROCESSING),
+            ("success", QiboJobStatus.SUCCESS),
             ("error", QiboJobStatus.ERROR),
         ],
     )
@@ -227,9 +231,11 @@ class TestQiboJob:
     @pytest.mark.parametrize(
         "status, expected_result",
         [
-            (QiboJobStatus.QUEUED, False),
+            (QiboJobStatus.QUEUEING, False),
+            (QiboJobStatus.PENDING, False),
             (QiboJobStatus.RUNNING, True),
-            (QiboJobStatus.DONE, False),
+            (QiboJobStatus.POSTPROCESSING, False),
+            (QiboJobStatus.SUCCESS, False),
             (QiboJobStatus.ERROR, False),
         ],
     )
@@ -243,9 +249,11 @@ class TestQiboJob:
     @pytest.mark.parametrize(
         "status, expected_result",
         [
-            (QiboJobStatus.QUEUED, False),
+            (QiboJobStatus.QUEUEING, False),
+            (QiboJobStatus.PENDING, False),
             (QiboJobStatus.RUNNING, True),
-            (QiboJobStatus.DONE, False),
+            (QiboJobStatus.POSTPROCESSING, False),
+            (QiboJobStatus.SUCCESS, False),
             (QiboJobStatus.ERROR, False),
         ],
     )
@@ -264,29 +272,33 @@ class TestQiboJob:
     @pytest.mark.parametrize(
         "status, expected_result",
         [
-            (QiboJobStatus.QUEUED, False),
+            (QiboJobStatus.QUEUEING, False),
+            (QiboJobStatus.PENDING, False),
             (QiboJobStatus.RUNNING, False),
-            (QiboJobStatus.DONE, True),
+            (QiboJobStatus.POSTPROCESSING, False),
+            (QiboJobStatus.SUCCESS, True),
             (QiboJobStatus.ERROR, False),
         ],
     )
-    def test_done_with_cached_results(
+    def test_success_with_cached_results(
         self, status: QiboJobStatus, expected_result: bool
     ):
         self.obj._status = status
-        result = self.obj.done()
+        result = self.obj.success()
         assert result == expected_result
 
     @pytest.mark.parametrize(
         "status, expected_result",
         [
-            (QiboJobStatus.QUEUED, False),
+            (QiboJobStatus.QUEUEING, False),
+            (QiboJobStatus.PENDING, False),
             (QiboJobStatus.RUNNING, False),
-            (QiboJobStatus.DONE, True),
+            (QiboJobStatus.POSTPROCESSING, False),
+            (QiboJobStatus.SUCCESS, True),
             (QiboJobStatus.ERROR, False),
         ],
     )
-    def test_done_without_cached_results(
+    def test_success_without_cached_results(
         self, monkeypatch, status: QiboJobStatus, expected_result: bool
     ):
         assert self.obj._status is None
@@ -295,7 +307,7 @@ class TestQiboJob:
             self.obj._status = status
 
         monkeypatch.setattr(self.obj, "refresh", change_obj_status_to)
-        result = self.obj.done()
+        result = self.obj.success()
         assert result == expected_result
 
     @responses.activate
@@ -308,7 +320,7 @@ class TestQiboJob:
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "in_progress"},
+            json={"status": "running"},
             status=200,
         )
 
@@ -332,7 +344,7 @@ class TestQiboJob:
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "in_progress"},
+            json={"status": "running"},
             status=200,
         )
 
@@ -353,7 +365,7 @@ class TestQiboJob:
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "in_progress"},
+            json={"status": "running"},
             status=200,
         )
 
@@ -372,7 +384,7 @@ class TestQiboJob:
     @pytest.mark.parametrize(
         "status, expected_job_status",
         [
-            ("success", QiboJobStatus.DONE),
+            ("success", QiboJobStatus.SUCCESS),
             ("error", QiboJobStatus.ERROR),
         ],
     )
@@ -387,13 +399,13 @@ class TestQiboJob:
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "in_progress"},
+            json={"status": "running"},
             status=200,
         )
 
         failed_attempts = 3
         endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
-        failed_headers = {"Job-Status": "in_progress"}
+        failed_headers = {"Job-Status": "running"}
         response_json = {"detail": "output"}
         for _ in range(failed_attempts):
             responses.add(
@@ -446,12 +458,12 @@ class TestQiboJob:
         responses.add(
             responses.GET,
             endpoint,
-            json={"status": "in_progress"},
+            json={"status": "running"},
             status=200,
         )
 
         endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
-        statuses_list = ["to_do", "in_progress", status]
+        statuses_list = ["queueing", "pending", "running", "postprocessing", status]
         for s in statuses_list:
             failed_headers = {"Job-Status": s}
             responses.add(
@@ -462,5 +474,11 @@ class TestQiboJob:
             )
         self.obj._wait_for_response_to_get_request(verbose=True)
 
-        expected_logs = ["Job QUEUING", "Job RUNNING", "Job COMPLETED"]
+        expected_logs = [
+            "Job QUEUEING",
+            "Job PENDING",
+            "Job RUNNING",
+            "Job POSTPROCESSING",
+            "Job COMPLETED",
+        ]
         assert caplog.messages == expected_logs
