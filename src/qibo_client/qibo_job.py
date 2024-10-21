@@ -201,20 +201,17 @@ class QiboJob:
         while True:
             response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
             job_status = convert_str_to_job_status(response.headers["Job-Status"])
-            if verbose:
-                match job_status:
-                    case QiboJobStatus.QUEUEING:
-                        logger.info("Job QUEUEING")
-                    case QiboJobStatus.PENDING:
-                        logger.info("Job PENDING")
-                    case QiboJobStatus.RUNNING:
-                        logger.info("Job RUNNING")
-                    case QiboJobStatus.POSTPROCESSING:
-                        logger.info("Job POSTPROCESSING")
-                    case QiboJobStatus.SUCCESS:
-                        logger.info("Job COMPLETED")
-                    case QiboJobStatus.ERROR:
-                        logger.info("Job COMPLETED")
+
+            if verbose and job_status == QiboJobStatus.QUEUEING:
+                logger.info("Job QUEUING")
+            if verbose and job_status == QiboJobStatus.PENDING:
+                logger.info("Job PENDING")
+            if verbose and job_status == QiboJobStatus.RUNNING:
+                logger.info("Job RUNNING")
+            if verbose and job_status == QiboJobStatus.POSTPROCESSING:
+                logger.info("Job POSTPROCESSING")
             if job_status in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]:
+                if verbose:
+                    logger.info("Job COMPLETED")
                 return response, job_status
             time.sleep(seconds_between_checks)
