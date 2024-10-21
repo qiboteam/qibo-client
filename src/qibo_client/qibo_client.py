@@ -67,29 +67,34 @@ class Client:
     def run_circuit(
         self,
         circuit: qibo.Circuit,
-        nshots: int = 1000,
-        device: str = "k2",
-    ) -> T.Optional[qibo.result.QuantumState]:
+        device: str,
+        nshots: int = None,
+    ) -> T.Optional[
+        T.Union[
+            qibo.result.QuantumState,
+            qibo.result.MeasurementOutcomes,
+            qibo.result.CircuitResult,
+        ]
+    ]:
         """Run circuit on the cluster.
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots
+        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
         :type nshots: int
-        :param device: the device to run the circuit on. Default device is `k2`
+        :param device: the device to run the circuit on.
         :type device: str
         :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
 
         :return:
-            the numpy array with the results of the computation. None if the job
+            the result of the computation. None if the job
             raised an error.
         :rtype: Optional[QiboJobResult]
         """
         self.check_client_server_qibo_versions()
-
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, nshots, device)
+        job = self._post_circuit(circuit, device, nshots)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -102,8 +107,8 @@ class Client:
     def _post_circuit(
         self,
         circuit: qibo.Circuit,
-        nshots: int = 100,
-        device: str = "k2",
+        device: str,
+        nshots: int = None,
     ) -> QiboJob:
         url = self.base_url + "/client/run_circuit/"
 
