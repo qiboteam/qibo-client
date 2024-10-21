@@ -14,7 +14,7 @@ def logging_wrap_function(logger_object):
     [
         ("DEBUG", ["A debug log", "An info log", "An error log"]),
         ("INFO", ["An info log", "An error log"]),
-        ("ERROR", ["An error log"])
+        ("ERROR", ["An error log"]),
     ],
 )
 def test_logger_levels(monkeypatch, caplog, loglevel, expected_messages):
