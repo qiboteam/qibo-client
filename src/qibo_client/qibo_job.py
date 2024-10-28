@@ -172,9 +172,10 @@ class QiboJob:
 
             logger.error(
                 "Job exited with error\n\nStdout:\n%s\n\nStderr:\n%s",
-                stdout, stderr,
+                stdout,
+                stderr,
             )
-            
+
             return None
 
         self.results_path = self.results_folder / "results.npy"
