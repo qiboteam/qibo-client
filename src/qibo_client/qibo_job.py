@@ -164,10 +164,18 @@ class QiboJob:
             return None
 
         if job_status == QiboJobStatus.ERROR:
-            logger.info(
-                "Job exited with error, check logs in %s folder",
-                self.results_folder.as_posix(),
+            out_log_path = self.results_folder / "stdout.log"
+            stdout = out_log_path.read_text() if out_log_path.is_file() else "-"
+
+            err_log_path = self.results_folder / "stderr.log"
+            stderr = err_log_path.read_text() if err_log_path.is_file() else "-"
+
+            logger.error(
+                "Job exited with error\n\nStdout:\n%s\n\nStderr:\n%s",
+                stdout,
+                stderr,
             )
+
             return None
 
         self.results_path = self.results_folder / "results.npy"
