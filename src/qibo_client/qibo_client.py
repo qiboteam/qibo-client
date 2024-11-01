@@ -36,7 +36,7 @@ class Client:
 
         Raise assertion error if the two versions are not the same.
         """
-        url = self.base_url + "/client/qibo_version/"
+        url = self.base_url + "/api/qibo_version/"
         response = QiboApiRequest.get(
             url,
             timeout=constants.TIMEOUT,
@@ -110,7 +110,7 @@ class Client:
         device: str,
         nshots: int = None,
     ) -> QiboJob:
-        url = self.base_url + "/client/run_circuit/"
+        url = self.base_url + "/api/run_circuit/"
 
         payload = {
             "token": self.token,
@@ -140,7 +140,7 @@ class Client:
 
     def print_quota_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/client/info/quotas/"
+        url = self.base_url + "/api/info/quotas/"
 
         payload = {
             "token": self.token,
@@ -186,7 +186,7 @@ class Client:
 
     def print_job_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/client/info/jobs/"
+        url = self.base_url + "/api/info/jobs/"
 
         payload = {
             "token": self.token,
@@ -209,7 +209,7 @@ class Client:
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/client/info/jobs/` endpoint returned info about "
+                "The `/api/info/jobs/` endpoint returned info about "
                 "multiple accounts."
             )
         user = list(user_set)[0]
