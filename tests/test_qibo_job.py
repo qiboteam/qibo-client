@@ -482,3 +482,12 @@ class TestQiboJob:
             "Job COMPLETED",
         ]
         assert caplog.messages == expected_logs
+
+    @responses.activate
+    def test_delete(self):
+        endpoint = FAKE_URL + f"/api/delete/job/{FAKE_PID}/"
+        response_json = {"detail": f"Job {FAKE_PID} deleted"}
+        responses.add(responses.DELETE, endpoint, status=200, json=response_json)
+
+        response = self.obj.delete()
+        assert response == response_json["detail"]
