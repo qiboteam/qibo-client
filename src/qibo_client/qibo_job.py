@@ -223,3 +223,8 @@ class QiboJob:
                     logger.info("Job COMPLETED")
                 return response, job_status
             time.sleep(seconds_between_checks)
+
+    def delete(self) -> str:
+        url = self.base_url + f"/api/delete/job/{self.pid}/"
+        response = QiboApiRequest.delete(url, timeout=constants.TIMEOUT)
+        return response.json()["detail"]

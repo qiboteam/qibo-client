@@ -238,9 +238,15 @@ class Client:
         :return: the requested QiboJob object
         :rtype: QiboJob
         """
-        job = QiboJob(
-            base_url=self.base_url,
-            pid=pid,
-        )
+        job = QiboJob(base_url=self.base_url, pid=pid)
         job.refresh()
         return job
+
+    def delete_job(self, pid: str):
+        """Removes the given job from the web server.
+
+        :param pid: the job's process identifier
+        :type pid: str
+        """
+        job = QiboJob(base_url=self.base_url, pid=pid)
+        return job.delete()
