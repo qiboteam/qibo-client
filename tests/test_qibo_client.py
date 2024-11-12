@@ -334,7 +334,7 @@ class TestQiboClient:
         )
         expected_result._status = QiboJobStatus.QUEUEING
         assert vars(result) == vars(expected_result)
-    
+
     @responses.activate
     def test_delete_job(self):
         endpoint = FAKE_URL + f"/api/delete/job/{FAKE_PID}/"
