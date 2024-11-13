@@ -334,3 +334,12 @@ class TestQiboClient:
         )
         expected_result._status = QiboJobStatus.QUEUEING
         assert vars(result) == vars(expected_result)
+
+    @responses.activate
+    def test_delete_job(self):
+        endpoint = FAKE_URL + f"/api/delete/job/{FAKE_PID}/"
+        response_json = {"detail": f"Job {FAKE_PID} deleted"}
+        responses.add(responses.DELETE, endpoint, status=200, json=response_json)
+
+        response = self.obj.delete_job(FAKE_PID)
+        assert response == response_json["detail"]

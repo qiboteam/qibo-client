@@ -66,3 +66,11 @@ class QiboApiRequest:
         return _make_request(
             requests.post, keys_to_check, endpoint, json=json, timeout=timeout
         )
+
+    @staticmethod
+    def delete(
+        endpoint: str,
+        timeout: T.Optional[float] = None,
+        keys_to_check: T.Optional[T.List[str]] = None,
+    ) -> requests.Response:
+        return _make_request(requests.delete, keys_to_check, endpoint, timeout=timeout)
