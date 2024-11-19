@@ -81,10 +81,12 @@ class Client:
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
-        :type nshots: int
         :param device: the device to run the circuit on.
         :type device: str
+        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
+        :type nshots: int
+        :param verbatim: If True, attempts to run the circuit without any transpilation. Defaults to False.
+        :type verbatim: bool
         :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
 
