@@ -126,7 +126,7 @@ class TestQiboClient:
         with pytest.raises(exceptions.JobApiError) as err:
             self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
-        expected_message = f"\033[91m[404 Error] {message}"
+        expected_message = f"\033[91m[404 Error] {message}\033[0m"
         assert str(err.value) == expected_message
 
     def test_run_circuit_with_job_post_error(self, pass_version_check):
