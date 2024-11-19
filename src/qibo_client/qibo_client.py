@@ -68,7 +68,8 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        nshots: T.Optional[int] = None,
+        verbatim: T.Optional[bool] = False,
     ) -> T.Optional[
         T.Union[
             qibo.result.QuantumState,
@@ -94,7 +95,7 @@ class Client:
         """
         self.check_client_server_qibo_versions()
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, device, nshots)
+        job = self._post_circuit(circuit, device, nshots, verbatim)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -108,7 +109,8 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        nshots: T.Optional[int] = None,
+        verbatim: T.Optional[bool] = False,
     ) -> QiboJob:
         url = self.base_url + "/api/run_circuit/"
 
@@ -117,6 +119,7 @@ class Client:
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
+            "verbatim": verbatim,
         }
         response = QiboApiRequest.post(
             url,
