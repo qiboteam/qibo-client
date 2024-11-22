@@ -204,7 +204,7 @@ class TestQiboJob:
         with pytest.raises(exceptions.JobApiError) as err:
             self.obj.refresh()
 
-        expected_message = f"\033[91m[404 Error] {response_json['detail']}"
+        expected_message = f"\033[91m[404 Error] {response_json['detail']}\033[0m"
         assert str(err.value) == expected_message
 
     @pytest.mark.parametrize(

@@ -27,5 +27,7 @@ class JobApiError(Exception):
     def __init__(self, status_code: int, message: str):
         self.status_code = status_code
         self.message = message
-        self.displayed_message = f"\033[91m[{self.status_code} Error] {self.message}"
+        self.displayed_message = (
+            f"\033[91m[{self.status_code} Error] {self.message}\033[0m"
+        )
         super().__init__(self.displayed_message)

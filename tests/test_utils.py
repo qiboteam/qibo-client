@@ -52,7 +52,7 @@ def test_get_request_with_404_error():
     with pytest.raises(exceptions.JobApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    expected_message = f"\033[91m[{status_code} Error] {message}"
+    expected_message = f"\033[91m[{status_code} Error] {message}\033[0m"
     assert str(err.value) == expected_message
 
 
@@ -87,5 +87,5 @@ def test_post_request_with_404_error():
     with pytest.raises(exceptions.JobApiError) as err:
         utils.QiboApiRequest.post(endpoint)
 
-    expected_message = f"\033[91m[{status_code} Error] {message}"
+    expected_message = f"\033[91m[{status_code} Error] {message}\033[0m"
     assert str(err.value) == expected_message
