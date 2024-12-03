@@ -22,6 +22,6 @@ client = Client(token)
 # run the circuit
 print(f"{'*'*20}\nPost circuit")
 start = time.time()
-job = client.run_circuit(circuit, nshots=100, device="k2")
+job = client.run_circuit(circuit, device="etna", project="Test 1", nshots=100)
 print(job.result())
 print(f"Program done in {time.time() - start:.4f}s")
