@@ -69,7 +69,7 @@ class Client:
         circuit: qibo.Circuit,
         device: str,
         nshots: T.Optional[int] = None,
-        verbatim: T.Optional[bool] = False,
+        verbatim: bool = False,
     ) -> T.Optional[
         T.Union[
             qibo.result.QuantumState,
@@ -112,7 +112,7 @@ class Client:
         circuit: qibo.Circuit,
         device: str,
         nshots: T.Optional[int] = None,
-        verbatim: T.Optional[bool] = False,
+        verbatim: bool = False,
     ) -> QiboJob:
         url = self.base_url + "/api/run_circuit/"
 
