@@ -68,7 +68,8 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        nshots: T.Optional[int] = None,
+        verbatim: bool = False,
     ) -> T.Optional[
         T.Union[
             qibo.result.QuantumState,
@@ -80,10 +81,12 @@ class Client:
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
-        :type nshots: int
         :param device: the device to run the circuit on.
         :type device: str
+        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
+        :type nshots: int
+        :param verbatim: If True, attempts to run the circuit without any transpilation. Defaults to False.
+        :type verbatim: bool
         :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
 
@@ -94,7 +97,7 @@ class Client:
         """
         self.check_client_server_qibo_versions()
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, device, nshots)
+        job = self._post_circuit(circuit, device, nshots, verbatim)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -108,7 +111,8 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        nshots: T.Optional[int] = None,
+        verbatim: bool = False,
     ) -> QiboJob:
         url = self.base_url + "/api/run_circuit/"
 
@@ -117,6 +121,7 @@ class Client:
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
+            "verbatim": verbatim,
         }
         response = QiboApiRequest.post(
             url,
