@@ -147,7 +147,7 @@ class Client:
             nshots=nshots,
             device=device,
         )
-    
+
     def print_quota_info(self):
         """Logs the formatted user quota info table."""
         url = self.base_url + "/api/info/quotas/"
