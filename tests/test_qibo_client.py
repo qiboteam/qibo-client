@@ -8,6 +8,7 @@ from qibo_client import QiboJob, QiboJobStatus, exceptions, qibo_client
 
 MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com/api"
+FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
 FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
@@ -146,7 +147,7 @@ class TestQiboClient:
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
+        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_PROJECT, FAKE_NSHOTS)
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
@@ -174,8 +175,9 @@ class TestQiboClient:
                 "kbs_left": 5,
                 "kbs_max": 10,
             },
-            "time_quotas": [
+            "projectquotas": [
                 {
+                    "project": {"name": FAKE_PROJECT},
                     "partition": {
                         "name": FAKE_DEVICE,
                         "max_num_qubits": FAKE_NUM_QUBITS,
@@ -184,6 +186,8 @@ class TestQiboClient:
                         "status": FAKE_STATUS,
                     },
                     "seconds_left": 1.5,
+                    "shots_left": 15,
+                    "jobs_left": 15,
                 }
             ],
         }
@@ -191,23 +195,29 @@ class TestQiboClient:
 
         rows = [
             (
+                FAKE_PROJECT,
                 FAKE_DEVICE,
                 FAKE_NUM_QUBITS,
                 FAKE_HARDWARE_TYPE,
                 FAKE_DESCRIPTION,
                 FAKE_STATUS,
                 1.5,
+                15,
+                15,
             )
         ]
         expected_table = tabulate.tabulate(
             rows,
             headers=[
+                "Project Name",
                 "Device Name",
                 "Qubits",
                 "Type",
                 "Description",
                 "Status",
                 "Time Left [s]",
+                "Shots Left",
+                "Jobs Left",
             ],
         )
         expected_message = (

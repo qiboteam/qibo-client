@@ -68,7 +68,9 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        project: str,
+        nshots: T.Optional[int] = None,
+        verbatim: bool = False,
     ) -> T.Optional[
         T.Union[
             qibo.result.QuantumState,
@@ -80,10 +82,14 @@ class Client:
 
         :param circuit: the QASM representation of the circuit to run
         :type circuit: Circuit
-        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
-        :type nshots: int
         :param device: the device to run the circuit on.
         :type device: str
+        :type project: the project to run the circuit on.
+        :type project: str
+        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
+        :type nshots: int
+        :param verbatim: If True, attempts to run the circuit without any transpilation. Defaults to False.
+        :type verbatim: bool
         :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
         :type wait_for_results: bool
 
@@ -94,7 +100,7 @@ class Client:
         """
         self.check_client_server_qibo_versions()
         logger.info("Post new circuit on the server")
-        job = self._post_circuit(circuit, device, nshots)
+        job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
         logger.info("Job posted on server with pid %s", self.pid)
         logger.info(
@@ -108,7 +114,9 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        nshots: int = None,
+        project: str,
+        nshots: T.Optional[int] = None,
+        verbatim: bool = False,
     ) -> QiboJob:
         url = self.base_url + "/api/run_circuit/"
 
@@ -117,6 +125,8 @@ class Client:
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
+            "project": project,
+            "verbatim": verbatim,
         }
         response = QiboApiRequest.post(
             url,
@@ -149,11 +159,11 @@ class Client:
             url,
             json=payload,
             timeout=constants.TIMEOUT,
-            keys_to_check=["disk_quota", "time_quotas"],
+            keys_to_check=["disk_quota", "projectquotas"],
         )
 
         disk_quota = response.json()["disk_quota"]
-        time_quotas = response.json()["time_quotas"]
+        projectquotas = response.json()["projectquotas"]
 
         message = (
             f"User: {disk_quota['user']['email']}\n"
@@ -162,24 +172,30 @@ class Client:
 
         rows = [
             (
+                t["project"]["name"],
                 t["partition"]["name"],
                 t["partition"]["max_num_qubits"],
                 t["partition"]["hardware_type"],
                 t["partition"]["description"],
                 t["partition"]["status"],
                 t["seconds_left"],
+                t["shots_left"],
+                t["jobs_left"],
             )
-            for t in time_quotas
+            for t in projectquotas
         ]
         message += tabulate.tabulate(
             rows,
             headers=[
+                "Project Name",
                 "Device Name",
                 "Qubits",
                 "Type",
                 "Description",
                 "Status",
                 "Time Left [s]",
+                "Shots Left",
+                "Jobs Left",
             ],
         )
         logger.info(message)
