@@ -53,9 +53,13 @@ receive after registration.
    >>> import qibo
    >>> circuit = qibo.models.QFT(5)
    >>> client = Client("your qibo token")
-   >>> job = client.run_circuit(circuit, nshots=100, device="sim")
+   >>> job = client.run_circuit(circuit, device="k2", project="personal", nshots=100)
    >>> result = job.result()
    >>> print(result)
+
+The `device` name indicates the specific system or machine that will process the
+job. The `project` name corresponds to the project or group to which the user
+belongs and which will be charged for the service usage.
 
 Content
 =======
