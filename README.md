@@ -48,7 +48,8 @@ client = qibo_client.Client(token)
 
 # run the circuit
 device = "device_name"
-job = client.run_circuit(circuit, nshots=1000, device=device)
+project = "project_name"
+job = client.run_circuit(circuit, device=device, project=project, nshots=1024)
 result = job.result()
 print(result)
 ```
