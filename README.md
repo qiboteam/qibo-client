@@ -53,3 +53,7 @@ job = client.run_circuit(circuit, device=device, project=project, nshots=1024)
 result = job.result()
 print(result)
 ```
+
+The `device` name indicates the specific system or machine that will process the
+job. The `project` name corresponds to the project or group to which the user
+belongs and which will be charged for the service usage.
