@@ -93,11 +93,13 @@ class QiboJob:
 
         This method does not query the results from server.
         """
-        url = self.base_url + f"/job/info/{self.pid}/"
-        response = response = QiboApiRequest.get(
+        url = self.base_url + f"/api/jobs/{self.pid}/"
+        headers = {"HTTP_X_API_TOKEN": self.token}
+        response = QiboApiRequest.get(
             url,
+            headers=headers,
             timeout=constants.TIMEOUT,
-            keys_to_check=["circuit", "nshots", "device", "status"],
+            keys_to_check=["circuit", "nshots", "projectquota", "status"],
         )
 
         info = response.json()
@@ -107,13 +109,14 @@ class QiboJob:
     def _update_job_info(self, info: T.Dict):
         self.circuit = info.get("circuit")
         self.nshots = info.get("nshots")
-        self.device = info["device"].get("name")
+        self.device = info["projectquota"]["partition"]["name"]
         self._status = convert_str_to_job_status(info["status"])
 
     def status(self) -> QiboJobStatus:
-        url = self.base_url + f"/job/info/{self.pid}/"
+        url = self.base_url + f"/api/jobs/{self.pid}/"
+        headers = {"HTTP_X_API_TOKEN": self.token}
         response = QiboApiRequest.get(
-            url, timeout=constants.TIMEOUT, keys_to_check=["status"]
+            url, headers=headers, timeout=constants.TIMEOUT, keys_to_check=["status"]
         )
         status = response.json()["status"]
         self._status = convert_str_to_job_status(status)
@@ -204,7 +207,7 @@ class QiboJob:
         if not verbose and is_job_finished:
             logger.info("Please wait until your job is completed...")
 
-        url = self.base_url + f"/job/result/{self.pid}/"
+        url = self.base_url + f"/api/jobs/result/{self.pid}/"
 
         while True:
             response = QiboApiRequest.get(url, timeout=constants.TIMEOUT)
@@ -225,6 +228,6 @@ class QiboJob:
             time.sleep(seconds_between_checks)
 
     def delete(self) -> str:
-        url = self.base_url + f"/api/delete/job/{self.pid}/"
+        url = self.base_url + f"/api/jobs/{self.pid}/"
         response = QiboApiRequest.delete(url, timeout=constants.TIMEOUT)
         return response.json()["detail"]
