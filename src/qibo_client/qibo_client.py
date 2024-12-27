@@ -235,8 +235,7 @@ class Client:
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/api/jobs/` endpoint returned info about "
-                "multiple accounts."
+                "The `/api/jobs/` endpoint returned info about " "multiple accounts."
             )
         user = list(user_set)[0]
 
