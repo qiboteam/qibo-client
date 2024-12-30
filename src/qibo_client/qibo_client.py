@@ -25,6 +25,7 @@ class Client:
         :type url: str
         """
         self.token = token
+        self.headers = {"x-api-token": token}
         self.base_url = url
 
         self.pid = None
@@ -120,8 +121,6 @@ class Client:
     ) -> QiboJob:
         url = self.base_url + "/api/jobs/"
 
-        headers = {"HTTP_X_API_TOKEN": self.token}
-
         payload = {
             "circuit": circuit.raw,
             "nshots": nshots,
@@ -131,7 +130,7 @@ class Client:
         }
         response = QiboApiRequest.post(
             url,
-            headers=headers,
+            headers=self.headers,
             json=payload,
             timeout=constants.TIMEOUT,
         )
@@ -144,6 +143,7 @@ class Client:
 
         return QiboJob(
             base_url=self.base_url,
+            headers=self.headers,
             pid=self.pid,
             circuit=circuit.raw,
             nshots=nshots,
@@ -154,12 +154,9 @@ class Client:
         """Logs the formatted user quota info table."""
         url = self.base_url + "/api/disk_quota/"
 
-        headers = {
-            "HTTP_X_API_TOKEN": self.token,
-        }
         response = QiboApiRequest.get(
             url,
-            headers=headers,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
         )
 
@@ -169,7 +166,7 @@ class Client:
 
         response = QiboApiRequest.get(
             url,
-            headers=headers,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
         )
 
@@ -214,12 +211,9 @@ class Client:
         """Logs the formatted user quota info table."""
         url = self.base_url + "/api/jobs/"
 
-        headers = {
-            "HTTP_X_API_TOKEN": self.token,
-        }
         response = QiboApiRequest.get(
             url,
-            headers=headers,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
         )
 
@@ -235,8 +229,7 @@ class Client:
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/api/jobs/` endpoint returned info about "
-                "multiple accounts."
+                "The `/api/jobs/` endpoint returned info about " "multiple accounts."
             )
         user = list(user_set)[0]
 
