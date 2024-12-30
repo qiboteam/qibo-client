@@ -16,7 +16,6 @@ def check_json_response_has_keys(response_json: T.Dict, keys: T.List[str]):
     :raises MalformedResponseError:
         if the server response does not contain all the expected keys.
     """
-    breakpoint()
     response_keys = set(response_json.keys())
     expected_keys = set(keys)
     missing_keys = expected_keys.difference(response_keys)
