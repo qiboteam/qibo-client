@@ -69,7 +69,7 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        project: str,
+        project: str = "personal",
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
     ) -> T.Optional[
