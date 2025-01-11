@@ -4,6 +4,7 @@ import responses
 
 from qibo_client import exceptions, utils
 
+
 def test_check_json_response_has_keys():
     """Check response body contains the keys"""
     keys = ["key1", "key2"]
