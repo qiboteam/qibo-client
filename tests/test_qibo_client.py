@@ -1,5 +1,7 @@
 import logging
 
+import fixs
+import jsf
 import pytest
 import responses
 import tabulate
@@ -7,7 +9,7 @@ import tabulate
 from qibo_client import QiboJob, QiboJobStatus, exceptions, qibo_client
 
 MOD = "qibo_client.qibo_client"
-FAKE_URL = "http://fake.endpoint.com/api"
+FAKE_URL = "http://fake.endpoint.com"
 FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
 FAKE_USER_EMAIL = "fake@user.com"
@@ -119,7 +121,7 @@ class TestQiboClient:
         assert expected_log in caplog.messages
 
     def test_run_circuit_with_invalid_token(self, pass_version_check):
-        endpoint = FAKE_URL + "/api/run_circuit/"
+        endpoint = FAKE_URL + "/api/jobs/"
         message = "User not found, specify the correct token"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
@@ -131,7 +133,7 @@ class TestQiboClient:
         assert str(err.value) == expected_message
 
     def test_run_circuit_with_job_post_error(self, pass_version_check):
-        endpoint = FAKE_URL + "/api/run_circuit/"
+        endpoint = FAKE_URL + "/api/jobs/"
         message = "Server failed to post job to queue"
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
@@ -143,7 +145,7 @@ class TestQiboClient:
 
     def test_run_circuit_with_success(self, pass_version_check, caplog):
         caplog.set_level(logging.INFO)
-        endpoint = FAKE_URL + "/api/run_circuit/"
+        endpoint = FAKE_URL + "/api/jobs/"
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
@@ -168,30 +170,33 @@ class TestQiboClient:
     def test_print_quota_info(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/api/info/quotas/"
-        response_json = {
-            "disk_quota": {
+        endpoint = FAKE_URL + "/api/disk_quota/"
+        response_json = [
+            {
                 "user": {"email": FAKE_USER_EMAIL},
                 "kbs_left": 5,
                 "kbs_max": 10,
-            },
-            "projectquotas": [
-                {
-                    "project": {"name": FAKE_PROJECT},
-                    "partition": {
-                        "name": FAKE_DEVICE,
-                        "max_num_qubits": FAKE_NUM_QUBITS,
-                        "hardware_type": FAKE_HARDWARE_TYPE,
-                        "description": FAKE_DESCRIPTION,
-                        "status": FAKE_STATUS,
-                    },
-                    "seconds_left": 1.5,
-                    "shots_left": 15,
-                    "jobs_left": 15,
-                }
-            ],
-        }
-        responses.add(responses.POST, endpoint, status=200, json=response_json)
+            }
+        ]
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
+
+        endpoint = FAKE_URL + "/api/projectquotas/"
+        response_json = [
+            {
+                "project": {"name": FAKE_PROJECT},
+                "partition": {
+                    "name": FAKE_DEVICE,
+                    "max_num_qubits": FAKE_NUM_QUBITS,
+                    "hardware_type": FAKE_HARDWARE_TYPE,
+                    "description": FAKE_DESCRIPTION,
+                    "status": FAKE_STATUS,
+                },
+                "seconds_left": 1.5,
+                "shots_left": 15,
+                "jobs_left": 15,
+            }
+        ]
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         rows = [
             (
@@ -233,7 +238,7 @@ class TestQiboClient:
     @responses.activate
     def test_print_job_info_with_success(self, caplog):
         caplog.set_level(logging.INFO)
-        endpoint = FAKE_URL + "/api/info/jobs/"
+        endpoint = FAKE_URL + "/api/jobs/"
         fake_creation_date = "2000-01-01T00:00:00.128372Z"
         formatted_creation_date = "2000-01-01 00:00:00"
         fake_update_date = "2000-01-02T00:00:00.128372Z"
@@ -258,7 +263,7 @@ class TestQiboClient:
             },
         ]
 
-        responses.add(responses.POST, endpoint, status=200, json=response_json)
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         rows = [
             (
@@ -288,8 +293,8 @@ class TestQiboClient:
     @responses.activate
     def test_print_job_info_without_jobs(self, caplog):
         caplog.set_level(logging.INFO)
-        endpoint = FAKE_URL + "/api/info/jobs/"
-        responses.add(responses.POST, endpoint, status=200, json=[])
+        endpoint = FAKE_URL + "/api/jobs/"
+        responses.add(responses.GET, endpoint, status=200, json=[])
 
         self.obj.print_job_info()
 
@@ -299,7 +304,7 @@ class TestQiboClient:
     def test_print_job_info_raises_valuerror(self, caplog):
         caplog.set_level(logging.INFO)
 
-        endpoint = FAKE_URL + "/api/info/jobs/"
+        endpoint = FAKE_URL + "/api/jobs/"
         response_json = [
             {
                 "pid": FAKE_PID + "1",
@@ -311,26 +316,19 @@ class TestQiboClient:
             },
         ]
 
-        responses.add(responses.POST, endpoint, status=200, json=response_json)
+        responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         with pytest.raises(ValueError):
             self.obj.print_job_info()
 
     @responses.activate
     def test_get_job(self):
-        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
-        response_json = {
-            "circuit": "fakeCircuit",
-            "nshots": FAKE_NSHOTS,
-            "device": {
-                "name": FAKE_DEVICE,
-                "max_num_qubits": FAKE_NUM_QUBITS,
-                "hardware_type": FAKE_HARDWARE_TYPE,
-                "description": None,
-                "status": FAKE_STATUS,
-            },
-            "status": "queueing",
-        }
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
+        response_json["status"] = "queueing"
+        response_json["circuit"] = "fakeCircuit"
+        response_json["nshots"] = FAKE_NSHOTS
+        response_json["projectquota"]["partition"]["name"] = FAKE_DEVICE
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         result = self.obj.get_job(FAKE_PID)
@@ -347,7 +345,7 @@ class TestQiboClient:
 
     @responses.activate
     def test_delete_job(self):
-        endpoint = FAKE_URL + f"/api/delete/job/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = {"detail": f"Job {FAKE_PID} deleted"}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 

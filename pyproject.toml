@@ -29,6 +29,7 @@ packaging = "^24.1"
 [tool.poetry.group.dev.dependencies]
 ipython = "^8"
 pdbpp = "^0.10.3"
+jsf = "^0.11.2"
 
 [tool.poetry.group.test.dependencies]
 pytest = "^7.4.3"

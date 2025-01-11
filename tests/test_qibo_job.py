@@ -2,6 +2,8 @@ import tarfile
 from contextlib import contextmanager
 from pathlib import Path
 
+import fixs
+import jsf
 import pytest
 import responses
 import utils_test_qibo_client as utils
@@ -141,7 +143,7 @@ def test__save_and_unpack_stream_response_to_folder(monkeypatch, tmp_path: Path)
 
 
 FAKE_PID = "fakePid"
-FAKE_URL = "http://fake.endpoint.com/api"
+FAKE_URL = "http://fake.endpoint.com"
 FAKE_CIRCUIT = "fakeCircuit"
 FAKE_NSHOTS = 10
 FAKE_DEVICE = "fakeDevice"
@@ -163,19 +165,26 @@ class TestQiboJob:
     @pytest.fixture
     @responses.activate
     def refresh_job(self):
-        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
-        response_json = {
-            "circuit": FAKE_CIRCUIT,
-            "nshots": FAKE_NSHOTS,
-            "device": {
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
+        response_json["circuit"] = FAKE_CIRCUIT
+        response_json["nshots"] = FAKE_CIRCUIT
+        response_json.update(
+            {
+                "circuit": FAKE_CIRCUIT,
+                "nshots": FAKE_NSHOTS,
+                "status": BASE_JOB_STATUS_STR,
+            }
+        )
+        response_json["projectquota"]["partition"].update(
+            {
                 "name": FAKE_DEVICE,
                 "max_num_qubits": FAKE_NUM_QUBITS,
                 "hardware_type": FAKE_HARDWARE_TYPE,
                 "description": None,
                 "status": FAKE_STATUS,
-            },
-            "status": BASE_JOB_STATUS_STR,
-        }
+            }
+        )
         responses.add(responses.GET, endpoint, status=200, json=response_json)
         self.obj.refresh()
 
@@ -197,7 +206,7 @@ class TestQiboJob:
     def test_refresh_with_invalid_pid(self):
         invalid_pid = "invalidPid"
         self.obj.pid = invalid_pid
-        endpoint = FAKE_URL + f"/job/info/{invalid_pid}/"
+        endpoint = FAKE_URL + f"/api/jobs/{invalid_pid}/"
         response_json = {"detail": f"Invalid job pid, got {invalid_pid}"}
         responses.add(responses.GET, endpoint, status=404, json=response_json)
 
@@ -220,7 +229,7 @@ class TestQiboJob:
     )
     @responses.activate
     def test_status(self, status, expected_result):
-        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = {"status": status}
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
@@ -312,11 +321,11 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_handles_tarfile_readerror(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
         headers = {"Job-Status": "success"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
-        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             info_endpoint,
@@ -336,15 +345,17 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_with_job_status_error(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
         headers = {"Job-Status": "error"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
-        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
+        response_json["status"] = "running"
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "running"},
+            json=response_json,
             status=200,
         )
 
@@ -357,11 +368,11 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_with_job_status_success(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
         headers = {"Job-Status": "success"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
-        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             info_endpoint,
@@ -395,7 +406,7 @@ class TestQiboJob:
 
         monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
 
-        info_endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             info_endpoint,
@@ -404,7 +415,7 @@ class TestQiboJob:
         )
 
         failed_attempts = 3
-        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
         failed_headers = {"Job-Status": "running"}
         response_json = {"detail": "output"}
         for _ in range(failed_attempts):
@@ -454,7 +465,7 @@ class TestQiboJob:
             "qibo_client.qibo_job.constants.SECONDS_BETWEEN_CHECKS", 1e-4
         )
 
-        endpoint = FAKE_URL + f"/job/info/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             endpoint,
@@ -462,7 +473,7 @@ class TestQiboJob:
             status=200,
         )
 
-        endpoint = FAKE_URL + f"/job/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
         statuses_list = ["queueing", "pending", "running", "postprocessing", status]
         for s in statuses_list:
             failed_headers = {"Job-Status": s}
@@ -485,7 +496,7 @@ class TestQiboJob:
 
     @responses.activate
     def test_delete(self):
-        endpoint = FAKE_URL + f"/api/delete/job/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = {"detail": f"Job {FAKE_PID} deleted"}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 

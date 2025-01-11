@@ -49,28 +49,43 @@ class QiboApiRequest:
     def get(
         endpoint: str,
         params: T.Optional[T.Dict] = None,
+        headers: T.Optional[T.Dict] = None,
         timeout: T.Optional[float] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
         return _make_request(
-            requests.get, keys_to_check, endpoint, params=params, timeout=timeout
+            requests.get,
+            keys_to_check,
+            endpoint,
+            params=params,
+            headers=headers,
+            timeout=timeout,
         )
 
     @staticmethod
     def post(
         endpoint: str,
+        headers: T.Optional[T.Dict] = None,
         json: T.Optional[T.Dict] = None,
         timeout: T.Optional[float] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
         return _make_request(
-            requests.post, keys_to_check, endpoint, json=json, timeout=timeout
+            requests.post,
+            keys_to_check,
+            endpoint,
+            headers=headers,
+            json=json,
+            timeout=timeout,
         )
 
     @staticmethod
     def delete(
         endpoint: str,
         timeout: T.Optional[float] = None,
+        headers: T.Optional[T.Dict] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
-        return _make_request(requests.delete, keys_to_check, endpoint, timeout=timeout)
+        return _make_request(
+            requests.delete, keys_to_check, endpoint, headers=headers, timeout=timeout
+        )

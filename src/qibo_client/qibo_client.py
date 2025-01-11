@@ -25,6 +25,7 @@ class Client:
         :type url: str
         """
         self.token = token
+        self.headers = {"x-api-token": token}
         self.base_url = url
 
         self.pid = None
@@ -68,7 +69,7 @@ class Client:
         self,
         circuit: qibo.Circuit,
         device: str,
-        project: str,
+        project: str = "personal",
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
     ) -> T.Optional[
@@ -118,10 +119,9 @@ class Client:
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
     ) -> QiboJob:
-        url = self.base_url + "/api/run_circuit/"
+        url = self.base_url + "/api/jobs/"
 
         payload = {
-            "token": self.token,
             "circuit": circuit.raw,
             "nshots": nshots,
             "device": device,
@@ -130,6 +130,7 @@ class Client:
         }
         response = QiboApiRequest.post(
             url,
+            headers=self.headers,
             json=payload,
             timeout=constants.TIMEOUT,
         )
@@ -142,6 +143,7 @@ class Client:
 
         return QiboJob(
             base_url=self.base_url,
+            headers=self.headers,
             pid=self.pid,
             circuit=circuit.raw,
             nshots=nshots,
@@ -150,20 +152,25 @@ class Client:
 
     def print_quota_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/api/info/quotas/"
+        url = self.base_url + "/api/disk_quota/"
 
-        payload = {
-            "token": self.token,
-        }
-        response = QiboApiRequest.post(
+        response = QiboApiRequest.get(
             url,
-            json=payload,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
-            keys_to_check=["disk_quota", "projectquotas"],
         )
 
-        disk_quota = response.json()["disk_quota"]
-        projectquotas = response.json()["projectquotas"]
+        disk_quota = response.json()[0]
+
+        url = self.base_url + "/api/projectquotas/"
+
+        response = QiboApiRequest.get(
+            url,
+            headers=self.headers,
+            timeout=constants.TIMEOUT,
+        )
+
+        projectquotas = response.json()
 
         message = (
             f"User: {disk_quota['user']['email']}\n"
@@ -202,14 +209,11 @@ class Client:
 
     def print_job_info(self):
         """Logs the formatted user quota info table."""
-        url = self.base_url + "/api/info/jobs/"
+        url = self.base_url + "/api/jobs/"
 
-        payload = {
-            "token": self.token,
-        }
-        response = QiboApiRequest.post(
+        response = QiboApiRequest.get(
             url,
-            json=payload,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
         )
 
@@ -225,8 +229,7 @@ class Client:
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/api/info/jobs/` endpoint returned info about "
-                "multiple accounts."
+                "The `/api/jobs/` endpoint returned info about " "multiple accounts."
             )
         user = list(user_set)[0]
 
