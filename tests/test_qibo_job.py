@@ -141,7 +141,7 @@ def test__save_and_unpack_stream_response_to_folder(monkeypatch, tmp_path: Path)
 
 
 FAKE_PID = "fakePid"
-FAKE_URL = "http://fake.endpoint.com/api"
+FAKE_URL = "http://fake.endpoint.com"
 FAKE_CIRCUIT = "fakeCircuit"
 FAKE_NSHOTS = 10
 FAKE_DEVICE = "fakeDevice"
