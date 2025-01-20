@@ -4,7 +4,7 @@ import qibo
 
 from qibo_client import Client
 
-# In this example we will run a circuit on the real quantum device ``apo`` hosted at TII
+# In this example we will run a circuit on the real quantum device ``etna`` hosted at TII
 # It is a 16 qubits device, with qubits named
 wire_names = [
     "A1",
