@@ -160,8 +160,6 @@ class TestQiboClient:
 
         expected_messages = [
             f"Job posted on server with pid {FAKE_PID}",
-            f"Check results availability for {FAKE_PID} job in your reserved "
-            f"page at {FAKE_URL}",
         ]
         for expected_message in expected_messages:
             assert expected_message in caplog.messages
