@@ -27,13 +27,13 @@ Once installed, the provider allows to run quantum circuit computations on remot
 
 :warning: Note: to run jobs on the remote cluster it is mandatory to own a
 validated account.
-Please, sign up to the cloud institution to
+Please, sign up to your preferred institution to
 obtain the needed token to run computations on the cluster.
 
 The following snippet provides a basic usage example.
 Replace the `your-token` string with your user token received during the
 registration process. To check which devices are available with your account
-please visit the dashboard at your institution provider.
+please visit the dashboard at your institution.
 
 ```python
 import qibo
