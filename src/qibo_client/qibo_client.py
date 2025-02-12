@@ -104,11 +104,6 @@ class Client:
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
         logger.info("Job posted on server with pid %s", self.pid)
-        logger.info(
-            "Check results availability for %s job in your reserved page at %s",
-            self.pid,
-            self.base_url,
-        )
         return job
 
     def _post_circuit(
