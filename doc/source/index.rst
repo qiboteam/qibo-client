@@ -39,8 +39,7 @@ remote server.
 
 .. note::
    In order to run jobs on the remote cluster it is mandatory to own a validated
-   account. Please, sign up to
-   `this link <https://cloud.qibo.science>`_ to obtain the needed
+   account. Please, sign up to your preferred institution to obtain the needed
    token to run computations on the cluster.
 
 The following example shows how to launch a simulation job.
