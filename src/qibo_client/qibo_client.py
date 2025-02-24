@@ -72,13 +72,7 @@ class Client:
         project: str = "personal",
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
-    ) -> T.Optional[
-        T.Union[
-            qibo.result.QuantumState,
-            qibo.result.MeasurementOutcomes,
-            qibo.result.CircuitResult,
-        ]
-    ]:
+    ) -> T.Optional[QiboJob]:
         """Run circuit on the cluster.
 
         :param circuit: the QASM representation of the circuit to run
@@ -97,7 +91,7 @@ class Client:
         :return:
             the result of the computation. None if the job
             raised an error.
-        :rtype: Optional[QiboJobResult]
+        :rtype: Optional[QiboJob]
         """
         self.check_client_server_qibo_versions()
         logger.info("Post new circuit on the server")
