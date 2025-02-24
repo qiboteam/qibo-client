@@ -252,7 +252,7 @@ class Client:
         :return: the requested QiboJob object
         :rtype: QiboJob
         """
-        job = QiboJob(base_url=self.base_url, pid=pid)
+        job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
         job.refresh()
         return job
 
@@ -262,5 +262,5 @@ class Client:
         :param pid: the job's process identifier
         :type pid: str
         """
-        job = QiboJob(base_url=self.base_url, pid=pid)
+        job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
         return job.delete()
