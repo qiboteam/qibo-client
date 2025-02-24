@@ -336,6 +336,7 @@ class TestQiboClient:
             base_url=FAKE_URL,
             circuit="fakeCircuit",
             nshots=FAKE_NSHOTS,
+            headers={"x-api-token": FAKE_TOKEN},
             device=FAKE_DEVICE,
         )
         expected_result._status = QiboJobStatus.QUEUEING
