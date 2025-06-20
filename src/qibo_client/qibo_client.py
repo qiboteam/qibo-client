@@ -168,7 +168,7 @@ class Client:
 
         rows = [
             (
-                t["project"]["name"],
+                t["project"],
                 t["partition"]["name"],
                 t["partition"]["max_num_qubits"],
                 t["partition"]["hardware_type"],
