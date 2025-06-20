@@ -181,7 +181,7 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/projectquotas/"
         response_json = [
             {
-                "project": {"name": FAKE_PROJECT},
+                "project": FAKE_PROJECT,
                 "partition": {
                     "name": FAKE_DEVICE,
                     "max_num_qubits": FAKE_NUM_QUBITS,
