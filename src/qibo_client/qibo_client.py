@@ -258,3 +258,11 @@ class Client:
         """
         job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
         return job.delete()
+
+    def delete_all_jobs(self):
+        """Removes all jobs from the web server."""
+        url = self.base_url + "/api/jobs/bulk_delete/"
+        response = QiboApiRequest.delete(
+            url, headers=self.headers, timeout=constants.TIMEOUT
+        )
+        return response.json()["deleted"]
