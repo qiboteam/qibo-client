@@ -265,4 +265,5 @@ class Client:
         response = QiboApiRequest.delete(
             url, headers=self.headers, timeout=constants.TIMEOUT
         )
-        return response.json()["deleted"]
+        num_deleted_jobs = response.json()["deleted"]
+        logger.info("Deleted %s jobs", num_deleted_jobs)
