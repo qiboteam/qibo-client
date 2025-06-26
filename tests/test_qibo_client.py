@@ -350,3 +350,12 @@ class TestQiboClient:
 
         response = self.obj.delete_job(FAKE_PID)
         assert response == response_json["detail"]
+
+    @responses.activate
+    def test_delete_all_jobs(self):
+        endpoint = FAKE_URL + "/api/jobs/bulk_delete/"
+        response_json = {"deleted": ["jobPid1", "jobPid2"]}
+        responses.add(responses.DELETE, endpoint, status=200, json=response_json)
+
+        response = self.obj.delete_all_jobs()
+        assert response == response_json["deleted"]
