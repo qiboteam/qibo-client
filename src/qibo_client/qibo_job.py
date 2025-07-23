@@ -237,4 +237,4 @@ class QiboJob:
         response = QiboApiRequest.delete(
             url, headers=self.headers, timeout=constants.TIMEOUT
         )
-        return response.json()["detail"]
+        return response
