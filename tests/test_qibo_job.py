@@ -501,4 +501,4 @@ class TestQiboJob:
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 
         response = self.obj.delete()
-        assert response == response_json["detail"]
+        assert response.json() == response_json
