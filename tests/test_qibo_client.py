@@ -348,8 +348,7 @@ class TestQiboClient:
         response_json = {"detail": f"Job {FAKE_PID} deleted"}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 
-        response = self.obj.delete_job(FAKE_PID)
-        assert response == response_json["detail"]
+        self.obj.delete_job(FAKE_PID)
 
     @responses.activate
     def test_delete_all_jobs(self):

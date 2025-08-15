@@ -17,28 +17,38 @@ def check_json_response_has_keys(response_json: T.Dict, keys: T.List[str]):
         if the server response does not contain all the expected keys.
     """
     response_keys = set(response_json.keys())
-    expected_keys = set(keys)
-    missing_keys = expected_keys.difference(response_keys)
-
-    if len(missing_keys):
+    missing = set(keys) - response_keys
+    if missing:
         raise MalformedResponseError(
-            f"The server response is missing the following keys: {' '.join(missing_keys)}"
+            f"The server response is missing the following keys: {' '.join(missing)}"
         )
 
 
-def _request_and_status_check(request_fn, *args, **kwargs):
-    try:
-        response = request_fn(*args, **kwargs)
-        response.raise_for_status()
-    except requests.HTTPError:
-        raise JobApiError(response.status_code, response.json().get("detail"))
-
+def _request_and_status_check(request_fn, *args, **kwargs) -> requests.Response:
+    """
+    Perform the HTTP request, then check status.
+    On error, attempt to pull out JSON['detail'], but fall back to text.
+    """
+    response = request_fn(*args, **kwargs)
+    if not response.ok:
+        # Try JSON detail first
+        detail = None
+        try:
+            payload = response.json()
+            detail = payload.get("detail") or payload
+        except (ValueError, TypeError):
+            # not JSON or missing
+            detail = response.text or f"HTTP {response.status_code}"
+        raise JobApiError(response.status_code, detail)
     return response
 
 
-def _make_request(request_fn, keys_to_check, *args, **kwargs) -> requests.Response:
+def _make_request(
+    request_fn, keys_to_check: T.Optional[T.List[str]], *args, **kwargs
+) -> requests.Response:
     response = _request_and_status_check(request_fn, *args, **kwargs)
     if keys_to_check is not None:
+        # Will raise MalformedResponseError if missing
         check_json_response_has_keys(response.json(), keys_to_check)
     return response
 
@@ -87,5 +97,9 @@ class QiboApiRequest:
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> requests.Response:
         return _make_request(
-            requests.delete, keys_to_check, endpoint, headers=headers, timeout=timeout
+            requests.delete,
+            keys_to_check,
+            endpoint,
+            headers=headers,
+            timeout=timeout,
         )

@@ -257,7 +257,8 @@ class Client:
         :type pid: str
         """
         job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
-        return job.delete()
+        job.delete()
+        logger.info("Deleted job %s", pid)
 
     def delete_all_jobs(self) -> list[str]:
         """Removes all jobs from the web server."""
