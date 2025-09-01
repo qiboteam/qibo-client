@@ -27,20 +27,46 @@ def check_json_response_has_keys(response_json: T.Dict, keys: T.List[str]):
 def _request_and_status_check(request_fn, *args, **kwargs) -> requests.Response:
     """
     Perform the HTTP request, then check status.
-    On error, attempt to pull out JSON['detail'], but fall back to text.
+    On error, extract a clean error message from the response.
     """
-    response = request_fn(*args, **kwargs)
-    if not response.ok:
-        # Try JSON detail first
-        detail = None
-        try:
-            payload = response.json()
-            detail = payload.get("detail") or payload
-        except (ValueError, TypeError):
-            # not JSON or missing
-            detail = response.text or f"HTTP {response.status_code}"
-        raise JobApiError(response.status_code, detail)
-    return response
+    try:
+        response = request_fn(*args, **kwargs)
+        if not response.ok:
+            # Try to extract a clean error message from the response
+            error_message = None
+            try:
+                payload = response.json()
+                # Try to get the most specific error message available
+                error_message = (
+                    payload.get("detail") or
+                    payload.get("error") or
+                    payload.get("message") or
+                    str(payload)  # Fall back to string representation of the payload
+                )
+            except (ValueError, TypeError, AttributeError):
+                # If we can't parse JSON, use the response text or status code
+                error_message = response.text.strip() or f"Error: HTTP {response.status_code}"
+            
+            # Clean up the error message if it's a string representation of a dict/list
+            if isinstance(error_message, str) and error_message.startswith(('{', '[')):
+                try:
+                    import json
+                    parsed = json.loads(error_message)
+                    if isinstance(parsed, dict):
+                        error_message = parsed.get('detail') or parsed.get('error') or str(parsed)
+                    else:
+                        error_message = str(parsed)
+                except (ValueError, TypeError, AttributeError):
+                    pass
+            
+            raise JobApiError(response.status_code, str(error_message).strip())
+        return response
+    except requests.exceptions.RequestException as e:
+        # Handle connection errors, timeouts, etc.
+        error_msg = str(e)
+        if not error_msg or 'HTTPSConnectionPool' in error_msg:
+            error_msg = "Could not connect to the server. Please check your internet connection and try again."
+        raise JobApiError(0, error_msg) from None
 
 
 def _make_request(
