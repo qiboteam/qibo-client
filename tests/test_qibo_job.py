@@ -345,7 +345,7 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_with_job_status_error(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/status/"
         headers = {"Job-Status": "error"}
         responses.add(responses.GET, endpoint, status=200, headers=headers)
 
@@ -400,7 +400,7 @@ class TestQiboJob:
         ],
     )
     @responses.activate
-    def test_wait_for_response_to_get_request(
+    def test_wait_for_response_to_get_request_simple(
         self, monkeypatch, caplog, status, expected_job_status
     ):
 
