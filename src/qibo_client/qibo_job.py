@@ -2,6 +2,7 @@ import tarfile
 import tempfile
 import time
 import typing as T
+from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 
@@ -223,10 +224,11 @@ class QiboJob:
             if verbose and job_status == QiboJobStatus.PENDING:
                 position_in_queue = response.json()["job_queue_position"]
                 seconds_to_job_start = response.json()["seconds_to_job_start"]
+                time_str = str(timedelta(seconds=seconds_to_job_start))
                 logger.info(
-                    "Job PENDING -> position in queue: %d, ETA: %d seconds",
+                    "Job PENDING -> position in queue: %d, max ETD: %s",
                     position_in_queue,
-                    seconds_to_job_start,
+                    time_str,
                 )
             if verbose and job_status == QiboJobStatus.RUNNING:
                 logger.info("Job RUNNING")
