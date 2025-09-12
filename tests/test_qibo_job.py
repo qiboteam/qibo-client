@@ -503,4 +503,3 @@ class TestQiboJob:
 
         response = self.obj.delete()
         assert response.json() == response_json
-
