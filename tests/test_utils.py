@@ -243,3 +243,25 @@ def test_error_cleanup_json_loads_raises_valueerror():
     # We should keep the original string since cleanup except-path 'pass'es.
     assert err.value.status_code == 400
     assert invalid_json_like_string in str(err.value)
+
+
+@responses.activate
+def test_error_cleanup_parsed_dict_picks_detail_from_inner_json_string():
+    endpoint = "http://fake.endpoint.com/api"
+
+    # Outer payload is a dict, but "error" is a JSON-encoded dict string.
+    # This ensures: payload.get("error") -> string starting with '{' -> cleanup runs
+    # cleanup json.loads(...) -> parsed is dict -> picks parsed["detail"] on that line.
+    responses.add(
+        responses.GET,
+        endpoint,
+        json={"error": '{"detail": "Nested detail message", "extra": "x"}'},
+        status=400,
+        content_type="application/json",
+    )
+
+    with pytest.raises(exceptions.JobApiError) as err:
+        utils.QiboApiRequest.get(endpoint)
+
+    assert err.value.status_code == 400
+    assert "Nested detail message" in str(err.value)
