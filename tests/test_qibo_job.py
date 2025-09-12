@@ -464,7 +464,14 @@ class TestQiboJob:
         responses.add(responses.GET, endpoint, status=200)
 
         endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        statuses_list = ["queueing", "pending", "running", "postprocessing", status]
+        statuses_list = [
+            "queueing",
+            "queueing",
+            "pending",
+            "running",
+            "postprocessing",
+            status,
+        ]
         for s in statuses_list:
             response_json = {
                 "status": s,
@@ -480,7 +487,7 @@ class TestQiboJob:
         self.obj._wait_for_response_to_get_request(verbose=True)
 
         expected_logs = [
-            # "Job QUEUEING",
+            "Job QUEUEING",
             "Job PENDING -> position in queue: 1, max ETD: 0:05:00",
             "Job RUNNING",
             "Job POSTPROCESSING",
@@ -496,3 +503,4 @@ class TestQiboJob:
 
         response = self.obj.delete()
         assert response.json() == response_json
+
