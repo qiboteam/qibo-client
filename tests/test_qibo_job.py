@@ -321,17 +321,16 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_handles_tarfile_readerror(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
-        headers = {"Job-Status": "success"}
-        responses.add(responses.GET, endpoint, status=200, headers=headers)
-
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "running"},
+            json={"status": "success"},
             status=200,
         )
+
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, endpoint, status=200)
 
         def raise_tarfile_readerror(*args):
             raise tarfile.ReadError()
@@ -345,13 +344,12 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_with_job_status_error(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/status/"
-        headers = {"Job-Status": "error"}
-        responses.add(responses.GET, endpoint, status=200, headers=headers)
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, endpoint, status=200)
 
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
-        response_json["status"] = "running"
+        response_json["status"] = "error"
         responses.add(
             responses.GET,
             info_endpoint,
@@ -368,15 +366,14 @@ class TestQiboJob:
 
     @responses.activate
     def test_result_with_job_status_success(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
-        headers = {"Job-Status": "success"}
-        responses.add(responses.GET, endpoint, status=200, headers=headers)
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, endpoint, status=200)
 
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET,
             info_endpoint,
-            json={"status": "running"},
+            json={"status": "success"},
             status=200,
         )
 
@@ -407,30 +404,28 @@ class TestQiboJob:
         monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
 
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        responses.add(
-            responses.GET,
-            info_endpoint,
-            json={"status": "running"},
-            status=200,
-        )
 
         failed_attempts = 3
-        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
-        failed_headers = {"Job-Status": "running"}
-        response_json = {"detail": "output"}
         for _ in range(failed_attempts):
             responses.add(
                 responses.GET,
-                endpoint,
-                headers=failed_headers,
+                info_endpoint,
                 status=200,
+                json={"status": "running"},
             )
 
-        success_headers = {"Job-Status": status}
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            status=200,
+            json={"status": status},
+        )
+
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        response_json = {"detail": "output"}
         responses.add(
             responses.GET,
             endpoint,
-            headers=success_headers,
             json=response_json,
             status=200,
         )
@@ -445,9 +440,9 @@ class TestQiboJob:
         assert responses.calls[0].request.url == info_endpoint
 
         # other calls are to result
-        for i in range(failed_attempts + 1):
-            r = responses.calls[i + 1].request
-            assert r.url == endpoint
+        for i in range(failed_attempts):
+            r = responses.calls[i].request
+            assert r.url == info_endpoint
 
         expected_logs = ["Please wait until your job is completed..."]
         assert caplog.messages == expected_logs
@@ -465,29 +460,28 @@ class TestQiboJob:
             "qibo_client.qibo_job.constants.SECONDS_BETWEEN_CHECKS", 1e-4
         )
 
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        responses.add(
-            responses.GET,
-            endpoint,
-            json={"status": "running"},
-            status=200,
-        )
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, endpoint, status=200)
 
-        endpoint = FAKE_URL + f"/api/jobs/result/{FAKE_PID}/"
+        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         statuses_list = ["queueing", "pending", "running", "postprocessing", status]
         for s in statuses_list:
-            failed_headers = {"Job-Status": s}
+            response_json = {
+                "status": s,
+                "seconds_to_job_start": 300,
+                "job_queue_position": 1,
+            }
             responses.add(
                 responses.GET,
                 endpoint,
-                headers=failed_headers,
+                json=response_json,
                 status=200,
             )
         self.obj._wait_for_response_to_get_request(verbose=True)
 
         expected_logs = [
-            "Job QUEUEING",
-            "Job PENDING",
+            # "Job QUEUEING",
+            "Job PENDING -> position in queue: 1, max ETD: 0:05:00",
             "Job RUNNING",
             "Job POSTPROCESSING",
             "Job COMPLETED",

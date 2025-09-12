@@ -159,7 +159,7 @@ class TestQiboClient:
         assert job._status is None
 
         expected_messages = [
-            f"Job posted on server with pid {FAKE_PID}",
+            f"Job posted on {FAKE_DEVICE} with pid {FAKE_PID}",
         ]
         for expected_message in expected_messages:
             assert expected_message in caplog.messages
