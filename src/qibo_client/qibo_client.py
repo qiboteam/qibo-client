@@ -97,7 +97,7 @@ class Client:
         logger.info("Post new circuit on the server")
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        logger.info("Job posted on server with pid %s", self.pid)
+        logger.info("Job posted on %s with pid %s", device, self.pid)
         return job
 
     def _post_circuit(

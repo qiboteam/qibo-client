@@ -28,6 +28,5 @@ client = Client(token)  # , url="http://localhost:8011")
 # run the circuit
 print(f"{'*'*20}\nPost circuit")
 start = time.time()
-job = client.run_circuit(circuit, device="k2", project="personal", nshots=150)
-print(job.result(wait=3, verbose=True))
+job = client.run_circuit(circuit, device="tii-sim", project="personal", nshots=150)
 print(f"Program done in {time.time() - start:.4f}s")
