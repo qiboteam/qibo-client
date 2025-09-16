@@ -159,7 +159,7 @@ class TestQiboClient:
         assert job._status is None
 
         expected_messages = [
-            f"Job posted on server with pid {FAKE_PID}",
+            f"Job posted on {FAKE_DEVICE} with pid {FAKE_PID}",
         ]
         for expected_message in expected_messages:
             assert expected_message in caplog.messages
@@ -348,8 +348,7 @@ class TestQiboClient:
         response_json = {"detail": f"Job {FAKE_PID} deleted"}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 
-        response = self.obj.delete_job(FAKE_PID)
-        assert response == response_json["detail"]
+        self.obj.delete_job(FAKE_PID)
 
     @responses.activate
     def test_delete_all_jobs(self):

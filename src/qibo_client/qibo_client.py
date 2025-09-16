@@ -97,7 +97,7 @@ class Client:
         logger.info("Post new circuit on the server")
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        logger.info("Job posted on server with pid %s", self.pid)
+        logger.info("Job posted on %s with pid %s", device, self.pid)
         return job
 
     def _post_circuit(
@@ -257,7 +257,8 @@ class Client:
         :type pid: str
         """
         job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
-        return job.delete()
+        job.delete()
+        logger.info("Deleted job %s", pid)
 
     def delete_all_jobs(self) -> list[str]:
         """Removes all jobs from the web server."""

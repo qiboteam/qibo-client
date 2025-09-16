@@ -2,6 +2,7 @@ import tarfile
 import tempfile
 import time
 import typing as T
+from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 
@@ -210,18 +211,25 @@ class QiboJob:
         if not verbose and is_job_finished:
             logger.info("Please wait until your job is completed...")
 
-        url = self.base_url + f"/api/jobs/result/{self.pid}/"
+        url = self.base_url + f"/api/jobs/{self.pid}/"
 
         while True:
             response = QiboApiRequest.get(
                 url, headers=self.headers, timeout=constants.TIMEOUT
             )
-            job_status = convert_str_to_job_status(response.headers["Job-Status"])
+            job_status = convert_str_to_job_status(response.json()["status"])
 
             if verbose and job_status == QiboJobStatus.QUEUEING:
                 logger.info("Job QUEUEING")
             if verbose and job_status == QiboJobStatus.PENDING:
-                logger.info("Job PENDING")
+                position_in_queue = response.json()["job_queue_position"]
+                seconds_to_job_start = response.json()["seconds_to_job_start"]
+                time_str = str(timedelta(seconds=seconds_to_job_start))
+                logger.info(
+                    "Job PENDING -> position in queue: %d, max ETD: %s",
+                    position_in_queue,
+                    time_str,
+                )
             if verbose and job_status == QiboJobStatus.RUNNING:
                 logger.info("Job RUNNING")
             if verbose and job_status == QiboJobStatus.POSTPROCESSING:
@@ -229,6 +237,11 @@ class QiboJob:
             if job_status in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]:
                 if verbose:
                     logger.info("Job COMPLETED")
+                response = QiboApiRequest.get(
+                    self.base_url + f"/api/jobs/{self.pid}/download/",
+                    headers=self.headers,
+                    timeout=constants.TIMEOUT,
+                )
                 return response, job_status
             time.sleep(seconds_between_checks)
 
@@ -237,4 +250,4 @@ class QiboJob:
         response = QiboApiRequest.delete(
             url, headers=self.headers, timeout=constants.TIMEOUT
         )
-        return response.json()["detail"]
+        return response
