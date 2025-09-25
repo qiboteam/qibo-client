@@ -2,7 +2,6 @@ import tarfile
 import tempfile
 import time
 import typing as T
-from datetime import timedelta
 from enum import Enum
 from pathlib import Path
 
@@ -12,6 +11,15 @@ import requests
 from . import constants
 from .config_logging import logger
 from .utils import QiboApiRequest
+
+
+def format_hms(seconds: int | float | None) -> str:
+    if seconds is None:
+        return "-"
+    total = int(round(seconds))
+    h, rem = divmod(total, 3600)
+    m, s = divmod(rem, 60)
+    return f"{h}:{m:02d}:{s:02d}"
 
 
 def convert_str_to_job_status(status: str):
@@ -91,39 +99,46 @@ class QiboJob:
 
         self._status = None
 
-    def refresh(self):
-        """Refreshes job information from server.
-
-        This method does not query the results from server.
-        """
+    def _snapshot(self) -> T.Dict:
+        """Fetch current job snapshot from the webapp."""
         url = self.base_url + f"/api/jobs/{self.pid}/"
-        response = QiboApiRequest.get(
-            url,
-            headers=self.headers,
-            timeout=constants.TIMEOUT,
-            keys_to_check=["circuit", "nshots", "projectquota", "status"],
-        )
-
-        info = response.json()
-        if info is not None:
-            self._update_job_info(info)
-
-    def _update_job_info(self, info: T.Dict):
-        self.circuit = info.get("circuit")
-        self.nshots = info.get("nshots")
-        self.device = info["projectquota"]["partition"]["name"]
-        self._status = convert_str_to_job_status(info["status"])
-
-    def status(self) -> QiboJobStatus:
-        url = self.base_url + f"/api/jobs/{self.pid}/"
-        response = QiboApiRequest.get(
+        resp = QiboApiRequest.get(
             url,
             headers=self.headers,
             timeout=constants.TIMEOUT,
             keys_to_check=["status"],
         )
-        status = response.json()["status"]
-        self._status = convert_str_to_job_status(status)
+        return resp.json()
+
+    def refresh(self):
+        """Refreshes job information from server (no results download)."""
+        info = self._snapshot()
+        if info:
+            self._update_job_info(info)
+
+    def _update_job_info(self, info: T.Dict):
+        self.circuit = info.get("circuit")
+        self.nshots = info.get("nshots")
+        # keep working even if BE omits nested project info
+        pq = info.get("projectquota") or {}
+        part = pq.get("partition") or {}
+        self.device = part.get("name", self.device)
+        self._status = convert_str_to_job_status(info["status"])
+
+        # Expose live queue info on the object for convenience
+        self.queue_position = info.get("queue_position")
+        self.seconds_to_job_start = info.get("etd_seconds")
+        self.queue_last_update = info.get("queue_last_update")
+
+    def status(self) -> QiboJobStatus:
+        info = self._snapshot()
+        self._status = convert_str_to_job_status(info["status"])
+        # keep queue fields in sync when caller asks status()
+        self.queue_position = info.get("queue_position", info.get("job_queue_position"))
+        self.seconds_to_job_start = info.get(
+            "etd_seconds", info.get("seconds_to_job_start")
+        )
+        self.queue_last_update = info.get("queue_last_update")
         return self._status
 
     def running(self) -> bool:
@@ -191,49 +206,73 @@ class QiboJob:
     def _wait_for_response_to_get_request(
         self, seconds_between_checks: T.Optional[int] = None, verbose: bool = False
     ) -> T.Tuple[requests.Response, QiboJobStatus]:
-        """Wait until the server completes the computation and return the response.
+        """Wait until the server completes the computation and return the response."""
 
-        :param url: the endpoint to make the request
-        :type url: str
-
-        :return: the response of the get request
-        :rtype: requests.Response
-        :return: the completed job response status
-        :rtype: QiboJobStatus
-        """
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
-        is_job_finished = self.status() not in [
-            QiboJobStatus.SUCCESS,
-            QiboJobStatus.ERROR,
-        ]
-        if not verbose and is_job_finished:
+        # Initial notice if not verbose
+        is_job_unfinished = self.status() not in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]
+        if not verbose and is_job_unfinished:
             logger.info("Please wait until your job is completed...")
 
         url = self.base_url + f"/api/jobs/{self.pid}/"
+
+        # Track the last thing we logged so we don’t spam duplicates
+        last_status: T.Optional[QiboJobStatus] = None
+        last_qpos: T.Optional[int] = None
+        last_etd: T.Optional[int] = None  # seconds
 
         while True:
             response = QiboApiRequest.get(
                 url, headers=self.headers, timeout=constants.TIMEOUT
             )
-            job_status = convert_str_to_job_status(response.json()["status"])
+            payload = response.json()
+            job_status = convert_str_to_job_status(payload["status"])
 
-            if verbose and job_status == QiboJobStatus.QUEUEING:
-                logger.info("Job QUEUEING")
-            if verbose and job_status == QiboJobStatus.PENDING:
-                position_in_queue = response.json()["job_queue_position"]
-                seconds_to_job_start = response.json()["seconds_to_job_start"]
-                time_str = str(timedelta(seconds=seconds_to_job_start))
-                logger.info(
-                    "Job PENDING -> position in queue: %d, max ETD: %s",
-                    position_in_queue,
-                    time_str,
-                )
-            if verbose and job_status == QiboJobStatus.RUNNING:
-                logger.info("Job RUNNING")
-            if verbose and job_status == QiboJobStatus.POSTPROCESSING:
-                logger.info("Job POSTPROCESSING")
+            # Pull live queue info (new fields first, fallback to legacy)
+            qpos = payload.get("queue_position", payload.get("job_queue_position"))
+            etd = payload.get("etd_seconds", payload.get("seconds_to_job_start"))
+
+            # ——— Logging logic (only on change) ———
+            if verbose:
+                if job_status != last_status:
+                    # entering a new status: log once
+                    if job_status == QiboJobStatus.QUEUEING:
+                        logger.info("Job QUEUEING")
+                    elif job_status == QiboJobStatus.PENDING:
+                        if qpos is not None:
+                            logger.info(
+                                "Job PENDING -> position in queue: %d, max ETD: %s",
+                                qpos, format_hms(etd),
+                            )
+                        else:
+                            logger.info("Job PENDING")
+                    elif job_status == QiboJobStatus.RUNNING:
+                        logger.info("Job RUNNING")
+                    elif job_status == QiboJobStatus.POSTPROCESSING:
+                        logger.info("Job POSTPROCESSING")
+                    # update trackers on status change
+                    last_status = job_status
+                    last_qpos = qpos
+                    last_etd = etd
+                else:
+                    # same status as before — only log if the meaningful info changed
+                    if job_status == QiboJobStatus.PENDING:
+                        if qpos != last_qpos or (etd != last_etd):
+                            if qpos is not None:
+                                logger.info(
+                                    "Job PENDING -> position in queue: %d, max ETD: %s",
+                                    qpos, format_hms(etd),
+                                )
+                            else:
+                                logger.info("Job PENDING")
+                            last_qpos = qpos
+                            last_etd = etd
+                    # For RUNNING/QUEUEING/POSTPROCESSING we intentionally stay quiet
+                    # until the status changes, to avoid duplicate lines.
+
+            # ——— Completion ———
             if job_status in [QiboJobStatus.SUCCESS, QiboJobStatus.ERROR]:
                 if verbose:
                     logger.info("Job COMPLETED")
@@ -243,11 +282,5 @@ class QiboJob:
                     timeout=constants.TIMEOUT,
                 )
                 return response, job_status
-            time.sleep(seconds_between_checks)
 
-    def delete(self) -> str:
-        url = self.base_url + f"/api/jobs/{self.pid}/"
-        response = QiboApiRequest.delete(
-            url, headers=self.headers, timeout=constants.TIMEOUT
-        )
-        return response
+            time.sleep(seconds_between_checks)
