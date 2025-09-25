@@ -130,13 +130,57 @@ def _log_status_non_tty(
 # -----------------------------
 # Rich renderers
 # -----------------------------
+
+
+def _print_event(title: str, subtitle: str | None = None, *, icon: str = "📝") -> None:
+    """
+    Single-line, fixed-width event banner.
+    - Uses Rich panel in TTY terminals.
+    - Falls back to logger.info elsewhere (non-TTY or verbose=False flows).
+    """
+    if console.is_terminal:
+        # one-row grid: [icon + title] | [subtitle or empty]
+        row = Table.grid(expand=True)
+        row.add_column(ratio=3, justify="left", no_wrap=False)
+        row.add_column(ratio=2, justify="right", no_wrap=True)
+
+        left = Table.grid(padding=(0, 1))
+        left.add_column(no_wrap=True)
+        left.add_column(no_wrap=False)
+        left.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
+
+        right = "" if subtitle is None else Text(subtitle, style="dim")
+
+        row.add_row(left, right)
+
+        console.print(Panel(row, box=box.ROUNDED, border_style="magenta"))
+    else:
+        # logging fallback
+        if subtitle:
+            logger.info("%s — %s", title, subtitle)
+        else:
+            logger.info("%s", title)
+
+
+def print_event_posting_start() -> None:
+    """Call right before you send the circuit to the server."""
+    _print_event("Post new circuit on the server", icon="📤")
+
+
+def print_event_job_posted(device: str, pid: str) -> None:
+    """Call right after the server returns the Job pid."""
+    _print_event(f"Job posted on {device}", subtitle=f"pid {pid}", icon="📬")
+
+
 def _status_panel(
-    status: "QiboJobStatus", queue_position: int | None, etd_seconds: int | float | None
+    status: "QiboJobStatus",
+    queue_position: int | None,
+    etd_seconds: int | float | None,
 ) -> Panel:
     """
-    Always render exactly one row.
-    - When PENDING: show queue + ETD
-    - Otherwise: hide queue + ETD (empty cells)
+    Single-row, fixed-width row:
+      [icon + STATUS] | [queue: ... or empty] | [ETD: ... or empty]
+    Queue/ETD are shown only when PENDING.
     """
     status_style_map = {
         QiboJobStatus.PENDING: "bold cyan",
@@ -144,27 +188,31 @@ def _status_panel(
         QiboJobStatus.SUCCESS: "bold green",
         QiboJobStatus.ERROR: "bold red",
     }
-    status_label = Text(f"{status.name}", style=status_style_map.get(status, "bold"))
+    status_text = Text(f"{status.name}", style=status_style_map.get(status, "bold"))
+    icon = _status_icon(status)
 
-    # Single-row, fixed columns to avoid jitter
+    # build the left cell: icon + label on one line
+    left_cell = Table.grid(padding=(0, 1))
+    left_cell.add_column(no_wrap=True)
+    left_cell.add_column(no_wrap=False)
+    left_cell.add_row(icon, status_text)
+
+    # main single-row grid
     grid = Table.grid(expand=True)
-    grid.add_column(ratio=2, justify="left", no_wrap=True)
+    grid.add_column(ratio=2, justify="left", no_wrap=False)
     grid.add_column(ratio=1, justify="center", no_wrap=True)
     grid.add_column(ratio=1, justify="right", no_wrap=True)
 
     if status == QiboJobStatus.PENDING:
         qp = "-" if queue_position is None else str(queue_position)
         etd_str = "-" if etd_seconds is None else format_hms(etd_seconds)
-        left = status_label
         mid = f"queue: {qp}"
         right = f"Max ETD: {etd_str}"
     else:
-        # hide queue/ETD outside PENDING: keep cells but empty
-        left = status_label
         mid = ""
         right = ""
 
-    grid.add_row(left, mid, right)
+    grid.add_row(left_cell, mid, right)
 
     border_color = {
         QiboJobStatus.SUCCESS: "green",
@@ -177,23 +225,30 @@ def _status_panel(
 
 def _status_icon(status: "QiboJobStatus") -> T.Any:
     """
-    Return an emoji or an animated spinner for the given status.
-    Spinners animate automatically under Live with a reasonable refresh rate.
+    Return a renderable (Text/Table/Spinner combo) for the current status.
+    IMPORTANT: don't call .add_row() inline and return its result (it's None).
+    Build the grid, add rows, THEN return the grid.
     """
     if status == QiboJobStatus.PENDING:
-        # clock + animated dots
-        return Table.grid().add_row("🕒", Spinner("dots"))
-    if status == QiboJobStatus.QUEUEING:
-        return Text("⏳")
+        g = Table.grid(padding=(0, 1))
+        g.add_column(no_wrap=True)
+        g.add_column(no_wrap=True)
+        g.add_row(Text("🕒"), Spinner("dots"))
+        return g
+
     if status == QiboJobStatus.RUNNING:
-        # rocket + spinner
-        return Table.grid().add_row("🚀", Spinner("line"))
+        g = Table.grid(padding=(0, 1))
+        g.add_column(no_wrap=True)
+        g.add_column(no_wrap=True)
+        g.add_row(Text("🚀"), Spinner("line"))
+        return g
+
     if status == QiboJobStatus.SUCCESS:
         return Text("✅")
+
     if status == QiboJobStatus.ERROR:
         return Text("❌")
-    if status == QiboJobStatus.POSTPROCESSING:
-        return Text("🧪")
+
     return Text("ℹ️")
 
 
@@ -337,12 +392,17 @@ class QiboJob:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
         # Gentle hint when not verbose
-        is_job_unfinished = self.status() not in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR)
+        is_job_unfinished = self.status() not in (
+            QiboJobStatus.SUCCESS,
+            QiboJobStatus.ERROR,
+        )
         if not verbose and is_job_unfinished:
             logger.info("Please wait until your job is completed...")
 
         url = self.base_url + f"/api/jobs/{self.pid}/"
-        use_live = verbose and console.is_terminal  # only show Rich Live in an interactive TTY
+        use_live = (
+            verbose and console.is_terminal
+        )  # only show Rich Live in an interactive TTY
 
         # Render policy: don't update during POSTPROCESSING so previous panel stays visible
         def _render(status: QiboJobStatus, qpos, etd):
@@ -352,8 +412,12 @@ class QiboJob:
             return _status_panel(status, qpos, etd)
 
         # Small wrapper to fetch status + live fields
-        def _fetch_snapshot() -> tuple[QiboJobStatus, T.Optional[int], T.Optional[int | float]]:
-            payload = QiboApiRequest.get(url, headers=self.headers, timeout=constants.TIMEOUT).json()
+        def _fetch_snapshot() -> (
+            tuple[QiboJobStatus, T.Optional[int], T.Optional[int | float]]
+        ):
+            payload = QiboApiRequest.get(
+                url, headers=self.headers, timeout=constants.TIMEOUT
+            ).json()
             status = convert_str_to_job_status(payload["status"])
             qpos = payload.get("queue_position", payload.get("job_queue_position"))
             etd = payload.get("etd_seconds", payload.get("seconds_to_job_start"))
@@ -366,7 +430,9 @@ class QiboJob:
             status0, qpos0, etd0 = _fetch_snapshot()
             initial_panel = _status_panel(status0, qpos0, etd0)
 
-            with Live(initial_panel, refresh_per_second=12, console=console, transient=False) as live:
+            with Live(
+                initial_panel, refresh_per_second=12, console=console, transient=False
+            ) as live:
                 while True:
                     job_status, qpos, etd = _fetch_snapshot()
 
@@ -375,7 +441,9 @@ class QiboJob:
                         live.update(renderable)  # single-row, fixed columns (no jitter)
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                        console.print("[bold]Job COMPLETED[/]")  # no filename/line number
+                        console.print(
+                            "[bold]Job COMPLETED[/]"
+                        )  # no filename/line number
                         response = QiboApiRequest.get(
                             self.base_url + f"/api/jobs/{self.pid}/download/",
                             headers=self.headers,
@@ -413,4 +481,3 @@ class QiboJob:
                 return response, job_status
 
             time.sleep(seconds_between_checks)
-
