@@ -8,11 +8,15 @@ from pathlib import Path
 import qibo
 import requests
 from rich import box
+from rich.align import Align
+from rich.columns import Columns
 
-# ---- Rich UI ----
-from rich.console import Console
+# ---- Rich UI ---- 
+from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
+from rich.rule import Rule
+from rich.segment import Segment
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
@@ -268,6 +272,43 @@ def _pending_panel(
     return Panel(table, border_style="cyan", box=box.ROUNDED)
 
 
+def _final_banner(
+    status: "QiboJobStatus",
+    *,
+    pid: str,
+    device: str | None,
+    elapsed_seconds: int | float | None,
+) -> Panel:
+    """Compact one-card completion banner."""
+    is_success = status == QiboJobStatus.SUCCESS
+    color = "green" if is_success else "red"
+    icon = "✅" if is_success else "❌"
+
+    # Headline
+    headline = Text.assemble(
+        f"{icon} ", ("JOB ", "bold"), (status.name, f"bold {color}")
+    )
+
+    # Metadata line as small chips
+    meta = Table.grid(padding=(0, 2))
+    meta.add_column(no_wrap=True)
+    meta.add_column(no_wrap=True)
+    meta.add_column(no_wrap=True)
+
+    meta.add_row(
+        Text.from_markup(f"[dim]pid[/] [bold]{pid}[/]"),
+        Text.from_markup(f"[dim]device[/] [bold]{device or '-'}[/]"),
+        Text.from_markup(f"[dim]elapsed[/] [bold]{format_hms(elapsed_seconds)}[/]"),
+    )
+
+    content = Group(
+        Align.left(headline),
+        Rule(style=color),
+        meta,
+    )
+    return Panel(content, border_style=color, box=box.ROUNDED)
+
+
 # -----------------------------
 # QiboJob
 # -----------------------------
@@ -433,6 +474,7 @@ class QiboJob:
             with Live(
                 initial_panel, refresh_per_second=12, console=console, transient=False
             ) as live:
+                start_ts = time.perf_counter()
                 while True:
                     job_status, qpos, etd = _fetch_snapshot()
 
@@ -441,13 +483,23 @@ class QiboJob:
                         live.update(renderable)  # single-row, fixed columns (no jitter)
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                        console.print(
-                            "[bold]Job COMPLETED[/]"
-                        )  # no filename/line number
+                        elapsed = time.perf_counter() - start_ts
+
+                        # Download first (so the final banner is the *last* thing the user sees)
                         response = QiboApiRequest.get(
                             self.base_url + f"/api/jobs/{self.pid}/download/",
                             headers=self.headers,
                             timeout=constants.TIMEOUT,
+                        )
+
+                        # Replace the live panel with a single compact result card
+                        live.update(
+                            _final_banner(
+                                job_status,
+                                pid=self.pid,
+                                device=self.device,
+                                elapsed_seconds=elapsed,
+                            )
                         )
                         return response, job_status
 
