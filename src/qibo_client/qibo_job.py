@@ -11,7 +11,7 @@ from rich import box
 from rich.align import Align
 from rich.columns import Columns
 
-# ---- Rich UI ---- 
+# ---- Rich UI ----
 from rich.console import Console, Group
 from rich.live import Live
 from rich.panel import Panel
@@ -25,7 +25,20 @@ from . import constants
 from .config_logging import logger
 from .utils import QiboApiRequest
 
-console = Console(log_path=False, log_time=True)
+
+def _in_jupyter() -> bool:
+    """Return True if running inside a Jupyter/IPython kernel (incl. VS Code, Colab)."""
+    try:
+        from IPython import get_ipython  # type: ignore
+
+        ip = get_ipython()
+        return bool(ip and getattr(ip, "kernel", None))
+    except Exception:
+        return False
+
+
+IS_NOTEBOOK = _in_jupyter()
+console = Console(force_jupyter=IS_NOTEBOOK, log_path=False, log_time=True)
 
 
 # -----------------------------
@@ -142,7 +155,7 @@ def _print_event(title: str, subtitle: str | None = None, *, icon: str = "📝")
     - Uses Rich panel in TTY terminals.
     - Falls back to logger.info elsewhere (non-TTY or verbose=False flows).
     """
-    if console.is_terminal:
+    if console.is_terminal or IS_NOTEBOOK:
         # one-row grid: [icon + title] | [subtitle or empty]
         row = Table.grid(expand=True)
         row.add_column(ratio=3, justify="left", no_wrap=False)
@@ -441,9 +454,9 @@ class QiboJob:
             logger.info("Please wait until your job is completed...")
 
         url = self.base_url + f"/api/jobs/{self.pid}/"
-        use_live = (
-            verbose and console.is_terminal
-        )  # only show Rich Live in an interactive TTY
+        use_live = verbose and (
+            console.is_terminal or IS_NOTEBOOK
+        )  # only show Rich Live in an interactive TTY or Jupyter notebook
 
         # Render policy: don't update during POSTPROCESSING so previous panel stays visible
         def _render(status: QiboJobStatus, qpos, etd):
@@ -532,4 +545,5 @@ class QiboJob:
                 )
                 return response, job_status
 
+            time.sleep(seconds_between_checks)
             time.sleep(seconds_between_checks)
