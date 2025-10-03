@@ -4,6 +4,7 @@ import time
 import typing as T
 from enum import Enum
 from pathlib import Path
+from typing import Dict, Optional
 
 import qibo
 import requests
@@ -12,7 +13,7 @@ from rich.align import Align
 from rich.columns import Columns
 
 # ---- Rich UI ----
-from rich.console import Console, Group
+from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
 from rich.rule import Rule
@@ -147,46 +148,77 @@ def _log_status_non_tty(
 # -----------------------------
 # Rich renderers
 # -----------------------------
+def _build_event_panel(
+    title: str, subtitle: str | None = None, *, icon: str = "📝"
+) -> Panel:
+    """
+    Build (but do not print) a single-line, fixed-width event banner Panel.
+    Caller decides how/when to emit (e.g., grouped with other panels).
+    """
+    # one-row grid: [icon + title] | [subtitle or empty]
+    row = Table.grid(expand=True)
+    row.add_column(ratio=3, justify="left", no_wrap=False)
+    row.add_column(ratio=2, justify="right", no_wrap=True)
+
+    left = Table.grid(padding=(0, 1))
+    left.add_column(no_wrap=True)
+    left.add_column(no_wrap=False)
+    left.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
+
+    right = "" if subtitle is None else Text(subtitle, style="dim")
+    row.add_row(left, right)
+
+    return Panel(row, box=box.ROUNDED, border_style="magenta")
+
+
+class _UISlots:
+    """
+    Compose a stable, single Rich renderable from named slots.
+    Each slot holds any Rich renderable (or None).
+    The composed renderable is a Group (tight stack with no extra spacing in Jupyter).
+    """
+
+    def __init__(self, order: T.Sequence[str]):
+        self._order = list(order)
+        self._slots: Dict[str, Optional[RenderableType]] = {
+            k: None for k in self._order
+        }
+
+    def set(self, name: str, renderable: Optional[RenderableType]) -> None:
+        if name not in self._slots:
+            raise KeyError(f"Unknown slot '{name}'")
+        self._slots[name] = renderable
+
+    def renderable(self) -> RenderableType:
+        # Only keep non-None slots, stack tightly
+        parts = [r for k in self._order if (r := self._slots[k]) is not None]
+        # Always return *one* renderable to Live/update
+        if not parts:
+            # Fallback: empty Text keeps Live happy without flicker
+            return Text("")
+        # Group avoids extra vertical gaps in Jupyter
+        return Group(*parts)
 
 
 def _print_event(title: str, subtitle: str | None = None, *, icon: str = "📝") -> None:
-    """
-    Single-line, fixed-width event banner.
-    - Uses Rich panel in TTY terminals.
-    - Falls back to logger.info elsewhere (non-TTY or verbose=False flows).
-    """
+    """Single-print path. Prefer grouping via _build_event_panel + Group."""
     if console.is_terminal or IS_NOTEBOOK:
-        # one-row grid: [icon + title] | [subtitle or empty]
-        row = Table.grid(expand=True)
-        row.add_column(ratio=3, justify="left", no_wrap=False)
-        row.add_column(ratio=2, justify="right", no_wrap=True)
-
-        left = Table.grid(padding=(0, 1))
-        left.add_column(no_wrap=True)
-        left.add_column(no_wrap=False)
-        left.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
-
-        right = "" if subtitle is None else Text(subtitle, style="dim")
-
-        row.add_row(left, right)
-
-        console.print(Panel(row, box=box.ROUNDED, border_style="magenta"))
+        console.print(_build_event_panel(title, subtitle, icon=icon))
     else:
-        # logging fallback
         if subtitle:
             logger.info("%s — %s", title, subtitle)
         else:
             logger.info("%s", title)
 
 
-def print_event_posting_start() -> None:
-    """Call right before you send the circuit to the server."""
-    _print_event("Post new circuit on the server", icon="📤")
+def build_event_posting_start_panel() -> Panel:
+    return _build_event_panel("Post new circuit on the server", icon="📤")
 
 
-def print_event_job_posted(device: str, pid: str) -> None:
-    """Call right after the server returns the Job pid."""
-    _print_event(f"Job posted on {device}", subtitle=f"pid {pid}", icon="📬")
+def build_event_job_posted_panel(device: str, pid: str) -> Panel:
+    return _build_event_panel(
+        f"Job posted on {device}", subtitle=f"pid {pid}", icon="📬"
+    )
 
 
 def _status_panel(
@@ -348,6 +380,8 @@ class QiboJob:
         self.seconds_to_job_start: T.Optional[int | float] = None
         self.queue_last_update: T.Optional[str] = None
 
+        self._preamble: T.Optional[RenderableType] = None
+
     # ---- server I/O ----
     def _snapshot(self) -> T.Dict:
         """Fetch current job snapshot from the webapp."""
@@ -479,13 +513,16 @@ class QiboJob:
 
         # --- Live (TTY) branch ---
         if use_live:
-            from rich.live import Live
-
             status0, qpos0, etd0 = _fetch_snapshot()
-            initial_panel = _status_panel(status0, qpos0, etd0)
+
+            # Compose a single renderable from named slots.
+            # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
+            ui = _UISlots(order=("header", "status", "footer"))
+            ui.set("header", self._preamble)
+            ui.set("status", _status_panel(status0, qpos0, etd0))
 
             with Live(
-                initial_panel, refresh_per_second=12, console=console, transient=False
+                ui.renderable(), refresh_per_second=12, console=console, transient=False
             ) as live:
                 start_ts = time.perf_counter()
                 while True:
@@ -493,32 +530,45 @@ class QiboJob:
 
                     renderable = _render(job_status, qpos, etd)
                     if renderable is not None:
-                        live.update(renderable)  # single-row, fixed columns (no jitter)
+                        # Swap the status slot in place
+                        ui.set("status", renderable)
+                        live.update(ui.renderable())
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
                         elapsed = time.perf_counter() - start_ts
 
-                        # Download first (so the final banner is the *last* thing the user sees)
+                        # Download first so that the final banner is the *last* thing shown
                         response = QiboApiRequest.get(
                             self.base_url + f"/api/jobs/{self.pid}/download/",
                             headers=self.headers,
                             timeout=constants.TIMEOUT,
                         )
 
-                        # Replace the live panel with a single compact result card
-                        live.update(
+                        # Replace the status slot with a compact final banner
+                        ui.set(
+                            "status",
                             _final_banner(
                                 job_status,
                                 pid=self.pid,
                                 device=self.device,
                                 elapsed_seconds=elapsed,
-                            )
+                            ),
                         )
+                        live.update(ui.renderable())
+                        live.refresh()
                         return response, job_status
 
                     time.sleep(seconds_between_checks)
 
         # --- Non-TTY / not verbose branch ---
+        if (
+            (console.is_terminal or IS_NOTEBOOK)
+            and verbose
+            and self._preamble is not None
+        ):
+            console.print(self._preamble)  # single block; still no extra gap later
+            self._preamble = None
+
         last_status: T.Optional[QiboJobStatus] = None
         printed_pending_with_info = False
 
@@ -545,5 +595,4 @@ class QiboJob:
                 )
                 return response, job_status
 
-            time.sleep(seconds_between_checks)
             time.sleep(seconds_between_checks)

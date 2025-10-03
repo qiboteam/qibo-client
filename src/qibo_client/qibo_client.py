@@ -6,13 +6,19 @@ import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
+from rich.console import Group
 
 from . import constants
 from .config_logging import logger
 from .exceptions import JobPostServerError
-from .qibo_job import QiboJob
+from .qibo_job import (
+    IS_NOTEBOOK,
+    QiboJob,
+    build_event_job_posted_panel,
+    build_event_posting_start_panel,
+    console,
+)
 from .utils import QiboApiRequest
-from .qibo_job import print_event_posting_start, print_event_job_posted
 
 
 class Client:
@@ -95,10 +101,13 @@ class Client:
         :rtype: Optional[QiboJob]
         """
         self.check_client_server_qibo_versions()
-        print_event_posting_start()
-        job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        print_event_job_posted(device, job.pid)
+        p1 = build_event_posting_start_panel()
+        job = self._post_circuit(circuit, device, project, nshots, verbatim)
+        p2 = build_event_job_posted_panel(device, job.pid)
+
+        job._preamble = Group(p1, p2)
+
         return job
 
     def _post_circuit(
