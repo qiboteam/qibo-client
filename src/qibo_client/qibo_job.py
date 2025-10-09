@@ -642,3 +642,10 @@ class QiboJob:
                 return response, job_status
 
             time.sleep(seconds_between_checks)
+
+    def delete(self) -> str:
+        url = self.base_url + f"/api/jobs/{self.pid}/"
+        response = QiboApiRequest.delete(
+            url, headers=self.headers, timeout=constants.TIMEOUT
+        )
+        return response
