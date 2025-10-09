@@ -1,3 +1,4 @@
+import importlib.metadata as im
 import tarfile
 import tempfile
 import time
@@ -21,6 +22,8 @@ from rich.segment import Segment
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
+
+version = im.version(__package__)
 
 from . import constants
 from .config_logging import logger
@@ -238,19 +241,8 @@ class _UISlots:
         return grid
 
 
-def _print_event(title: str, subtitle: str | None = None, *, icon: str = "📝") -> None:
-    """Single-print path. Prefer grouping via _build_event_panel + Group."""
-    if console.is_terminal or IS_NOTEBOOK:
-        console.print(_build_event_panel(title, subtitle, icon=icon))
-    else:
-        if subtitle:
-            logger.info("%s — %s", title, subtitle)
-        else:
-            logger.info("%s", title)
-
-
 def build_event_posting_start_panel() -> Panel:
-    return _build_event_panel("Post new circuit on the server", icon="📤")
+    return _build_event_panel("Starting qibo client...", icon="🚀")
 
 
 def build_event_job_posted_panel(device: str, pid: str) -> Panel:
@@ -474,7 +466,7 @@ class QiboJob:
 
     # ---- main wait loop ----
     def result(
-        self, wait: int = 5, verbose: bool = False
+        self, wait: float = 0.5, verbose: bool = True
     ) -> T.Optional[qibo.result.QuantumState]:
         """Poll server until completion, then download and return result."""
         response, job_status = self._wait_for_response_to_get_request(wait, verbose)
@@ -556,7 +548,7 @@ class QiboJob:
             # Compose a single renderable from named slots.
             # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
             ui = _UISlots(order=("header", "status", "footer"))
-            title = "qibo client version 0.1.0"
+            title = f"Qibo client version {version}"
             ui.set("header", self._preamble)
             ui.set("status", _status_panel(status0, qpos0, etd0))
 

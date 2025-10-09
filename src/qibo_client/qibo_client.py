@@ -16,7 +16,6 @@ from .qibo_job import (
     QiboJob,
     build_event_job_posted_panel,
     build_event_posting_start_panel,
-    console,
 )
 from .utils import QiboApiRequest
 
@@ -102,11 +101,13 @@ class Client:
         """
         self.check_client_server_qibo_versions()
 
-        p1 = build_event_posting_start_panel()
+        # p1 = build_event_posting_start_panel()
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
+
         p2 = build_event_job_posted_panel(device, job.pid)
 
-        job._preamble = Group(p1, p2)
+        # job._preamble = Group(p1, p2)
+        job._preamble = p2
 
         return job
 
