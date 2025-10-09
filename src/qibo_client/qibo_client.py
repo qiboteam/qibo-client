@@ -6,17 +6,11 @@ import dateutil
 import qibo
 import tabulate
 from packaging.version import Version
-from rich.console import Group
 
 from . import constants
 from .config_logging import logger
 from .exceptions import JobPostServerError
-from .qibo_job import (
-    IS_NOTEBOOK,
-    QiboJob,
-    build_event_job_posted_panel,
-    build_event_posting_start_panel,
-)
+from .qibo_job import QiboJob, build_event_job_posted_panel
 from .utils import QiboApiRequest
 
 
