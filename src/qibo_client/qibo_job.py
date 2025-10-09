@@ -520,7 +520,7 @@ class QiboJob:
         return qibo.result.load_result(self.results_path)
 
     def _wait_for_response_to_get_request(
-        self, seconds_between_checks: T.Optional[int] = None, verbose: bool = False
+        self, seconds_between_checks: T.Optional[int] = None, verbose: bool = True
     ) -> T.Tuple[requests.Response, QiboJobStatus]:
         """Poll the job until completion; return (download_response, final_status)."""
         if seconds_between_checks is None:
@@ -615,8 +615,9 @@ class QiboJob:
         last_status: T.Optional[QiboJobStatus] = None
         printed_pending_with_info = False
 
-        logger.info("🚀 Starting qibo client...")
-        logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
+        if verbose and is_job_unfinished:
+            logger.info("🚀 Starting qibo client...")
+            logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
 
         while True:
             job_status, qpos, etd = _fetch_snapshot()
