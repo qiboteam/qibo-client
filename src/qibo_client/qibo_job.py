@@ -41,8 +41,29 @@ def _in_jupyter() -> bool:
         return False
 
 
+def _is_ipywidgets_installed() -> bool:
+    try:
+        import ipywidgets
+
+        return True
+    except ModuleNotFoundError:
+        logger.warning(
+            "Note: ipywidgets is not installed. "
+            "Falling back to standard logging. "
+            "Install with: `pip install ipywidgets` to enable the Rich UI."
+        )
+        return False
+
+
 IS_NOTEBOOK = _in_jupyter()
-console = Console(force_jupyter=IS_NOTEBOOK, log_path=False, log_time=True)
+RICH_NOTEBOOK = IS_NOTEBOOK and _is_ipywidgets_installed()
+
+console = Console(
+    force_jupyter=RICH_NOTEBOOK,
+    log_path=False,
+    log_time=True,
+)
+USE_RICH_UI = (not IS_NOTEBOOK and console.is_terminal) or RICH_NOTEBOOK
 
 
 # -----------------------------
@@ -518,9 +539,8 @@ class QiboJob:
             logger.info("Please wait until your job is completed...")
 
         url = self.base_url + f"/api/jobs/{self.pid}/"
-        use_live = verbose and (
-            console.is_terminal or IS_NOTEBOOK
-        )  # only show Rich Live in an interactive TTY or Jupyter notebook
+        # Only show Rich Live in an interactive TTY or Jupyter with ipywidgets.
+        use_live = verbose and USE_RICH_UI
 
         # Render policy: don't update during POSTPROCESSING so previous panel stays visible
         def _render(status: QiboJobStatus, qpos, etd):
@@ -596,17 +616,11 @@ class QiboJob:
 
                     time.sleep(seconds_between_checks)
 
-        # --- Non-TTY / not verbose branch ---
-        if (
-            (console.is_terminal or IS_NOTEBOOK)
-            and verbose
-            and self._preamble is not None
-        ):
-            console.print(self._preamble)  # single block; still no extra gap later
-            self._preamble = None
-
         last_status: T.Optional[QiboJobStatus] = None
         printed_pending_with_info = False
+
+        logger.info("🚀 Starting qibo client...")
+        logger.info("📬 Job posted on %s\ with pid, %s", self.device, self.pid)
 
         while True:
             job_status, qpos, etd = _fetch_snapshot()
