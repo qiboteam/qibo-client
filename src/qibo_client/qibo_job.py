@@ -262,10 +262,6 @@ class _UISlots:
         return grid
 
 
-def build_event_posting_start_panel() -> Panel:
-    return _build_event_panel("Starting qibo client...", icon="🚀")
-
-
 def build_event_job_posted_panel(device: str, pid: str) -> Panel:
     return _build_event_panel(
         f"Job posted on {device}", subtitle=f"pid {pid}", icon="📬"
@@ -620,7 +616,7 @@ class QiboJob:
         printed_pending_with_info = False
 
         logger.info("🚀 Starting qibo client...")
-        logger.info("📬 Job posted on %s\ with pid, %s", self.device, self.pid)
+        logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
 
         while True:
             job_status, qpos, etd = _fetch_snapshot()

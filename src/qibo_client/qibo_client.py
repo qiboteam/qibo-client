@@ -101,12 +101,9 @@ class Client:
         """
         self.check_client_server_qibo_versions()
 
-        p1 = build_event_posting_start_panel()
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        p2 = build_event_job_posted_panel(device, job.pid)
-
-        job._preamble = Group(p1, p2)
+        job._preamble = build_event_job_posted_panel(device, job.pid)
 
         return job
 
