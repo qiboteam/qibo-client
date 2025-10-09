@@ -148,6 +148,42 @@ def _log_status_non_tty(
 # -----------------------------
 # Rich renderers
 # -----------------------------
+def _outer_container(title: str, inner: RenderableType) -> Panel:
+    header_style = "bold magenta"
+
+    grid = Table.grid(expand=True)
+    grid.add_column(ratio=1)
+    grid.add_row(inner)
+
+    return Panel(
+        grid,
+        title=f"[{header_style}]{title}[/]",
+        border_style="magenta",
+        box=box.DOUBLE,
+        padding=(1, 2),
+        expand=True,  # outer fills console width
+    )
+
+
+class _Outer:
+    """Stable outer container that always wraps the current UI slots."""
+
+    def __init__(self, title: str, ui: "_UISlots"):
+        self.title = title
+        self.ui = ui
+
+    def __rich_console__(self, console: Console, options):
+        # Always render the inner Group and wrap it in the titled panel
+        inner = self.ui.renderable()
+        yield _outer_container(self.title, inner)
+
+    # Pass-through measurement so Live can size correctly
+    def __rich_measure__(self, console: Console, options):
+        inner = self.ui.renderable()
+        panel = _outer_container(self.title, inner)
+        return panel.__rich_measure__(console, options)
+
+
 def _build_event_panel(
     title: str, subtitle: str | None = None, *, icon: str = "📝"
 ) -> Panel:
@@ -168,7 +204,7 @@ def _build_event_panel(
     right = "" if subtitle is None else Text(subtitle, style="dim")
     row.add_row(left, right)
 
-    return Panel(row, box=box.ROUNDED, border_style="magenta")
+    return Panel(row, box=box.ROUNDED, border_style="magenta", expand=True)
 
 
 class _UISlots:
@@ -189,15 +225,17 @@ class _UISlots:
             raise KeyError(f"Unknown slot '{name}'")
         self._slots[name] = renderable
 
-    def renderable(self) -> RenderableType:
-        # Only keep non-None slots, stack tightly
+    def renderable(self, *, title: str | None = None) -> RenderableType:
+        """Return full renderable, optionally wrapped in a titled outer container."""
         parts = [r for k in self._order if (r := self._slots[k]) is not None]
-        # Always return *one* renderable to Live/update
         if not parts:
-            # Fallback: empty Text keeps Live happy without flicker
             return Text("")
-        # Group avoids extra vertical gaps in Jupyter
-        return Group(*parts)
+
+        grid = Table.grid(expand=True)
+        grid.add_column(ratio=1)
+        for p in parts:
+            grid.add_row(p)
+        return grid
 
 
 def _print_event(title: str, subtitle: str | None = None, *, icon: str = "📝") -> None:
@@ -269,7 +307,7 @@ def _status_panel(
         QiboJobStatus.PENDING: "cyan",
     }.get(status, "dim")
 
-    return Panel(grid, box=box.ROUNDED, border_style=border_color)
+    return Panel(grid, box=box.ROUNDED, border_style=border_color, expand=True)
 
 
 def _status_icon(status: "QiboJobStatus") -> T.Any:
@@ -314,7 +352,7 @@ def _pending_panel(
         table.add_row("Max ETD:", f"[bold]{format_hms(etd_seconds)}[/]")
     if queue_position is None and etd_seconds is None:
         table.add_row("", "[dim]waiting for queue info…[/]")
-    return Panel(table, border_style="cyan", box=box.ROUNDED)
+    return Panel(table, border_style="cyan", box=box.ROUNDED, expand=True)
 
 
 def _final_banner(
@@ -351,7 +389,7 @@ def _final_banner(
         Rule(style=color),
         meta,
     )
-    return Panel(content, border_style=color, box=box.ROUNDED)
+    return Panel(content, border_style=color, box=box.ROUNDED, expand=True)
 
 
 # -----------------------------
@@ -518,11 +556,18 @@ class QiboJob:
             # Compose a single renderable from named slots.
             # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
             ui = _UISlots(order=("header", "status", "footer"))
+            title = "qibo client version 0.1.0"
             ui.set("header", self._preamble)
             ui.set("status", _status_panel(status0, qpos0, etd0))
 
+            outer = _Outer(title, ui)
+
             with Live(
-                ui.renderable(), refresh_per_second=12, console=console, transient=False
+                outer,
+                refresh_per_second=12,
+                console=console,
+                transient=False,
+                vertical_overflow="visible",
             ) as live:
                 start_ts = time.perf_counter()
                 while True:
@@ -532,7 +577,7 @@ class QiboJob:
                     if renderable is not None:
                         # Swap the status slot in place
                         ui.set("status", renderable)
-                        live.update(ui.renderable())
+                        live.refresh()
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
                         elapsed = time.perf_counter() - start_ts
@@ -554,7 +599,6 @@ class QiboJob:
                                 elapsed_seconds=elapsed,
                             ),
                         )
-                        live.update(ui.renderable())
                         live.refresh()
                         return response, job_status
 
