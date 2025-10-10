@@ -10,7 +10,7 @@ from packaging.version import Version
 from . import constants
 from .config_logging import logger
 from .exceptions import JobPostServerError
-from .qibo_job import QiboJob
+from .qibo_job import QiboJob, build_event_job_posted_panel
 from .utils import QiboApiRequest
 
 
@@ -94,10 +94,11 @@ class Client:
         :rtype: Optional[QiboJob]
         """
         self.check_client_server_qibo_versions()
-        logger.info("Post new circuit on the server")
+
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        logger.info("Job posted on %s with pid %s", device, self.pid)
+        job._preamble = build_event_job_posted_panel(device, job.pid)
+
         return job
 
     def _post_circuit(
