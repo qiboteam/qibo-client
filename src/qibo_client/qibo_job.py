@@ -11,14 +11,12 @@ import qibo
 import requests
 from rich import box
 from rich.align import Align
-from rich.columns import Columns
 
 # ---- Rich UI ----
 from rich.console import Console, Group, RenderableType
 from rich.live import Live
 from rich.panel import Panel
 from rich.rule import Rule
-from rich.segment import Segment
 from rich.spinner import Spinner
 from rich.table import Table
 from rich.text import Text
@@ -37,7 +35,7 @@ def _in_jupyter() -> bool:
 
         ip = get_ipython()
         return bool(ip and getattr(ip, "kernel", None))
-    except Exception:
+    except ModuleNotFoundError:
         return False
 
 
