@@ -43,6 +43,7 @@ class Client:
         url = self.base_url + "/api/qibo_version/"
         response = QiboApiRequest.get(
             url,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
             keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
         )
