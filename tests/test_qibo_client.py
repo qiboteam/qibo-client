@@ -12,9 +12,10 @@ MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com"
 FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
+FAKE_QIBO_CLIENT_VERSION = "0.1.4"
 FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
-FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.2.4"
+FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.1.2a"
 FAKE_PID = "123"
 TIMEOUT = 1
 
@@ -314,7 +315,8 @@ class TestQiboClient:
             self.obj.print_job_info()
 
     @responses.activate
-    def test_get_job(self):
+    def test_get_job(self, monkeypatch):
+        monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
         endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
         response_json["status"] = "queueing"
@@ -330,7 +332,10 @@ class TestQiboClient:
             base_url=FAKE_URL,
             circuit="fakeCircuit",
             nshots=FAKE_NSHOTS,
-            headers={"x-api-token": FAKE_TOKEN},
+            headers={
+                "x-api-token": FAKE_TOKEN,
+                "x-qibo-client-version": FAKE_QIBO_CLIENT_VERSION,
+            },
             device=FAKE_DEVICE,
         )
         expected_result._status = QiboJobStatus.QUEUEING
