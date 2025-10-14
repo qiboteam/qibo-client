@@ -1,5 +1,6 @@
 """The module implementing the Client class."""
 
+import importlib.metadata as im
 import typing as T
 
 import dateutil
@@ -13,6 +14,8 @@ from .exceptions import JobPostServerError
 from .qibo_job import QiboJob, build_event_job_posted_panel
 from .utils import QiboApiRequest
 
+version = im.version(__package__)
+
 
 class Client:
     """Class to manage the interaction with the remote server."""
@@ -25,7 +28,7 @@ class Client:
         :type url: str
         """
         self.token = token
-        self.headers = {"x-api-token": token}
+        self.headers = {"x-api-token": token, "x-qibo-client-version": version}
         self.base_url = url
 
         self.pid = None
@@ -40,6 +43,7 @@ class Client:
         url = self.base_url + "/api/qibo_version/"
         response = QiboApiRequest.get(
             url,
+            headers=self.headers,
             timeout=constants.TIMEOUT,
             keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
         )
