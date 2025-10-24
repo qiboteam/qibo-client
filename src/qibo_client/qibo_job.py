@@ -25,7 +25,7 @@ version = im.version(__package__)
 
 from . import constants
 from .config_logging import logger
-from .ui.settings import console, USE_RICH_UI
+from .ui.settings import USE_RICH_UI, console
 from .utils import QiboApiRequest
 
 
