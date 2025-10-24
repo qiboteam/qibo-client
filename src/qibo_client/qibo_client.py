@@ -10,7 +10,7 @@ from packaging.version import Version
 
 from . import constants
 from .config_logging import logger
-from .exceptions import JobPostServerError
+from .exceptions import JobPostServerError, QiboApiError
 from .qibo_job import QiboJob, build_event_job_posted_panel
 from .utils import QiboApiRequest
 
@@ -112,7 +112,7 @@ class Client:
         project: str,
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
-    ) -> QiboJob:
+    ) -> QiboJob | None:
         url = self.base_url + "/api/jobs/"
 
         payload = {
@@ -128,6 +128,7 @@ class Client:
             json=payload,
             timeout=constants.TIMEOUT,
         )
+
         result = response.json()
 
         self.pid = result.get("pid")
