@@ -12,7 +12,7 @@ MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com"
 FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
-FAKE_QIBO_CLIENT_VERSION = "0.2.0"
+FAKE_QIBO_CLIENT_VERSION = "0.2.x"
 FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
 FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.1.2a"
@@ -42,6 +42,7 @@ class TestQiboClient:
     )
     def setup_and_teardown(self, monkeypatch):
         monkeypatch.setattr(f"{MOD}.constants.BASE_URL", FAKE_URL)
+        monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
         self.obj = qibo_client.Client(FAKE_TOKEN, FAKE_URL)
         yield
 
@@ -316,7 +317,6 @@ class TestQiboClient:
 
     @responses.activate
     def test_get_job(self, monkeypatch):
-        monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
         endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
         response_json["status"] = "queueing"
