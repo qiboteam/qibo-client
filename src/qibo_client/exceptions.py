@@ -3,7 +3,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
-from typing import Any, Dict, Optional
+from typing import Any
 
 # Rich is an optional runtime dependency for UI; we guard imports.
 try:
@@ -55,7 +55,7 @@ class QiboApiError(RuntimeError):
     method: str
     url: str
     message: str
-    payload: Optional[Dict[str, Any]] = None
+    payload: dict[str, Any] | None = None
 
     def __post_init__(self):
         # Keep the base Exception message concise
@@ -111,6 +111,6 @@ class QiboApiError(RuntimeError):
             c.print(
                 f"[bold red][{self.status} Error][/bold red] {self.message}  [dim]{self.method} {self.url}[/dim]"
             )
-    
+
     def get_plain_message(self) -> str:
         return f"[{self.status} Error] {self.message} ({self.method} {self.url})"
