@@ -5,13 +5,13 @@ import typing as T
 
 import dateutil
 import qibo
-import tabulate
 from packaging.version import Version
 
 from . import constants
 from .config_logging import logger
-from .exceptions import JobPostServerError, QiboApiError
+from .exceptions import JobPostServerError
 from .qibo_job import QiboJob, build_event_job_posted_panel
+from .ui import client_ui as ui
 from .utils import QiboApiRequest
 
 version = im.version(__package__)
@@ -146,102 +146,45 @@ class Client:
         )
 
     def print_quota_info(self):
-        """Logs the formatted user quota info table."""
+        """Logs or prints user quota info with Rich or fallback."""
         url = self.base_url + "/api/disk_quota/"
-
         response = QiboApiRequest.get(
-            url,
-            headers=self.headers,
-            timeout=constants.TIMEOUT,
+            url, headers=self.headers, timeout=constants.TIMEOUT
         )
-
         disk_quota = response.json()[0]
 
         url = self.base_url + "/api/projectquotas/"
-
         response = QiboApiRequest.get(
-            url,
-            headers=self.headers,
-            timeout=constants.TIMEOUT,
+            url, headers=self.headers, timeout=constants.TIMEOUT
         )
-
         projectquotas = response.json()
 
-        message = (
-            f"User: {disk_quota['user']['email']}\n"
-            f"Disk quota left [KBs]: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
-        )
-
-        rows = [
-            (
-                t["project"],
-                t["partition"]["name"],
-                t["partition"]["max_num_qubits"],
-                t["partition"]["hardware_type"],
-                t["partition"]["description"],
-                t["partition"]["status"],
-                t["seconds_left"],
-                t["shots_left"],
-                t["jobs_left"],
-            )
-            for t in projectquotas
-        ]
-        message += tabulate.tabulate(
-            rows,
-            headers=[
-                "Project Name",
-                "Device Name",
-                "Qubits",
-                "Type",
-                "Description",
-                "Status",
-                "Time Left [s]",
-                "Shots Left",
-                "Jobs Left",
-            ],
-        )
-        logger.info(message)
+        ui.render_quota(disk_quota, projectquotas)
 
     def print_job_info(self):
-        """Logs the formatted user quota info table."""
+        """Logs or prints job info with Rich or fallback."""
         url = self.base_url + "/api/jobs/"
-
         response = QiboApiRequest.get(
-            url,
-            headers=self.headers,
-            timeout=constants.TIMEOUT,
+            url, headers=self.headers, timeout=constants.TIMEOUT
         )
-
-        def format_date(dt: str) -> str:
-            dt = dateutil.parser.isoparse(dt)
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
-
         jobs = response.json()
-        if not len(jobs):
+
+        if not jobs:
             logger.info("No jobs found in database for user")
-            return None
+            return
 
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
             raise ValueError(
-                "The `/api/jobs/` endpoint returned info about " "multiple accounts."
+                "The `/api/jobs/` endpoint returned info about multiple accounts."
             )
-        user = list(user_set)[0]
+        user = next(iter(user_set))
 
-        rows = [
-            (
-                job["pid"],
-                format_date(job["created_at"]),
-                format_date(job["updated_at"]),
-                job["status"],
-                job["result_path"],
-            )
-            for job in response.json()
-        ]
-        message = f"User: {user}\n" + tabulate.tabulate(
-            rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
-        )
-        logger.info(message)
+        def _fmt(dt: str) -> str:
+            dt = dateutil.parser.isoparse(dt)
+            return dt.strftime("%Y-%m-%d %H:%M:%S")
+
+        ui.render_jobs(user, jobs, _fmt)
 
     def get_job(self, pid: str) -> QiboJob:
         """Retrieves the job from the unique process id.
