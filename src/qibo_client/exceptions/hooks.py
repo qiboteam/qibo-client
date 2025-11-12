@@ -81,6 +81,7 @@ def install_qibo_error_hooks() -> bool:
     if "IPython" in sys.modules:
         try:
             from IPython import get_ipython
+
             shell = get_ipython()
             if shell is not None:
                 shell.set_custom_exc(

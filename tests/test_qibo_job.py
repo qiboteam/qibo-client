@@ -213,7 +213,7 @@ class TestQiboJob:
         with pytest.raises(exceptions.QiboApiError) as err:
             self.obj.refresh()
 
-        assert str(err.value) == response_json['detail']
+        assert str(err.value) == response_json["detail"]
 
     @pytest.mark.parametrize(
         "status, expected_result",

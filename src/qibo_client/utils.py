@@ -1,8 +1,6 @@
 from __future__ import annotations
 
-import sys
 import typing as T
-from functools import wraps
 
 import requests
 
