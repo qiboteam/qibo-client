@@ -21,7 +21,6 @@ def _build_api_error_panel(error: QiboApiError):
         ("API Error ", "bold red"),
     )
 
-
     grid = Table.grid(expand=True)
     grid.add_column(ratio=2, justify="left", no_wrap=False)
     grid.add_column(ratio=3, justify="right", no_wrap=False)
