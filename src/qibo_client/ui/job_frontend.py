@@ -96,7 +96,7 @@ def _outer_container(title: str, inner: RenderableType) -> Panel:
 class LiveOuter:
     """Stable outer container that always wraps the current UI slots."""
 
-    def __init__(self, title: str, ui: "UISlots"):
+    def __init__(self, title: str, ui: UISlots):
         self.title = title
         self.ui = ui
 
