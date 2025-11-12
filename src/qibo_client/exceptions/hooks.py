@@ -4,8 +4,8 @@ import threading
 import weakref
 from contextlib import contextmanager
 
-from .errors import QiboApiError
 from ..ui.error_renderers import print_api_error
+from .errors import QiboApiError
 
 _prev_sys_excepthook = None
 _prev_threading_excepthook = None
@@ -120,6 +120,8 @@ def qibo_error_hooks():
     finally:
         if installed_now:
             uninstall_qibo_error_hooks()
+
+
 def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
     """IPython custom exception hook: render API errors cleanly."""
     _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters

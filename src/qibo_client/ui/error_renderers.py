@@ -2,10 +2,11 @@
 
 from __future__ import annotations
 
-from ..exceptions.errors import QiboApiError
 from rich.panel import Panel
 from rich.table import Table
 from rich.text import Text
+
+from ..exceptions.errors import QiboApiError
 
 try:
     from .settings import USE_RICH_UI, console
