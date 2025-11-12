@@ -133,7 +133,9 @@ def test_install_and_uninstall_hooks_manage_global_state(monkeypatch, hooks):
     original_sys_hook = sys.excepthook
     original_thread_hook = getattr(threading, "excepthook", None)
     async_calls = []
-    monkeypatch.setattr(hooks, "_install_asyncio_handler_if_running", lambda: async_calls.append(True))
+    monkeypatch.setattr(
+        hooks, "_install_asyncio_handler_if_running", lambda: async_calls.append(True)
+    )
 
     class DummyShell:
         def __init__(self):
