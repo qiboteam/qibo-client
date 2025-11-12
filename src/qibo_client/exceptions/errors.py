@@ -113,4 +113,4 @@ class QiboApiError(RuntimeError):
             )
 
     def get_plain_message(self) -> str:
-        return f"[{self.status} Error] {self.message} ({self.method} {self.url})"
+        return f"\x1b[91m[{self.status} Error] {self.message} ({self.method} {self.url})\x1b[0m"

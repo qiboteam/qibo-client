@@ -210,11 +210,10 @@ class TestQiboJob:
         response_json = {"detail": f"Invalid job pid, got {invalid_pid}"}
         responses.add(responses.GET, endpoint, status=404, json=response_json)
 
-        with pytest.raises(exceptions.JobApiError) as err:
+        with pytest.raises(exceptions.QiboApiError) as err:
             self.obj.refresh()
 
-        expected_message = f"\033[91m[404 Error] {response_json['detail']}\033[0m"
-        assert str(err.value) == expected_message
+        assert str(err.value) == response_json['detail']
 
     @pytest.mark.parametrize(
         "status, expected_result",

@@ -94,7 +94,7 @@ def _request_and_status_check(request_fn, *args, **kwargs) -> requests.Response:
         )
 
 
-def _make_request(
+def _make_server_request(
     request_fn, keys_to_check: T.Optional[T.List[str]], *args, **kwargs
 ) -> requests.Response:
     response = _request_and_status_check(request_fn, *args, **kwargs)
@@ -104,26 +104,9 @@ def _make_request(
     return response
 
 
-def handle_api_errors(func):
-    """Decorator that catches QiboApiError, prints its Rich panel,
-    and exits cleanly (without traceback)."""
-
-    @wraps(func)
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except QiboApiError as e:
-            e.print_rich()
-            # exit gracefully (no traceback)
-            sys.exit(1)
-
-    return wrapper
-
-
 class QiboApiRequest:
 
     @staticmethod
-    @handle_api_errors
     def get(
         endpoint: str,
         params: T.Optional[T.Dict] = None,
@@ -131,7 +114,7 @@ class QiboApiRequest:
         timeout: T.Optional[float] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> T.Optional[requests.Response]:
-        return _make_request(
+        return _make_server_request(
             requests.get,
             keys_to_check,
             endpoint,
@@ -141,7 +124,6 @@ class QiboApiRequest:
         )
 
     @staticmethod
-    @handle_api_errors
     def post(
         endpoint: str,
         headers: T.Optional[T.Dict] = None,
@@ -149,7 +131,7 @@ class QiboApiRequest:
         timeout: T.Optional[float] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> T.Optional[requests.Response]:
-        return _make_request(
+        return _make_server_request(
             requests.post,
             keys_to_check,
             endpoint,
@@ -159,14 +141,13 @@ class QiboApiRequest:
         )
 
     @staticmethod
-    @handle_api_errors
     def delete(
         endpoint: str,
         timeout: T.Optional[float] = None,
         headers: T.Optional[T.Dict] = None,
         keys_to_check: T.Optional[T.List[str]] = None,
     ) -> T.Optional[requests.Response]:
-        return _make_request(
+        return _make_server_request(
             requests.delete,
             keys_to_check,
             endpoint,
