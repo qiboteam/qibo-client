@@ -1,4 +1,3 @@
-import types
 
 import pytest
 from rich.panel import Panel
