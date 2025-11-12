@@ -1,4 +1,5 @@
 import asyncio
+import importlib
 import sys
 import threading
 import weakref
@@ -11,6 +12,29 @@ _prev_sys_excepthook = None
 _prev_threading_excepthook = None
 _prev_asyncio_handlers = weakref.WeakKeyDictionary()  # loop -> previous handler
 _installed = False  # idempotency guard
+
+
+def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
+    """IPython custom exception hook: render API errors cleanly."""
+    _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters
+    print_api_error(exc_value)
+
+
+def _get_ipython_shell():
+    """Return the active IPython shell instance, or None if unavailable."""
+    if "IPython" not in sys.modules:
+        return None
+    try:
+        ipy = importlib.import_module("IPython")
+    except ImportError:
+        return None
+    get_ipython = getattr(ipy, "get_ipython", None)
+    if get_ipython is None:
+        return None
+    try:
+        return get_ipython()
+    except Exception:
+        return None
 
 
 def _qibo_sys_excepthook(exc_type, exc_value, exc_tb):
@@ -78,14 +102,10 @@ def install_qibo_error_hooks() -> bool:
     # Asyncio: only if a loop is currently running (no deprecation warning)
     _install_asyncio_handler_if_running()
 
-    # IPython/Jupyter integration (safe/no-op on failure)
-    if "IPython" in sys.modules:
+    shell = _get_ipython_shell()
+    if shell is not None:
         try:
-            from IPython import get_ipython
-
-            shell = get_ipython()
-            if shell is not None:
-                shell.set_custom_exc((QiboApiError,), _ipython_custom_exc_handler)
+            shell.set_custom_exc((QiboApiError,), _ipython_custom_exc_handler)
         except Exception:
             pass
 
