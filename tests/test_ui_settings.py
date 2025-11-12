@@ -5,7 +5,6 @@ import types
 
 import pytest
 
-
 MODULE_PATH = "qibo_client.ui.settings"
 
 

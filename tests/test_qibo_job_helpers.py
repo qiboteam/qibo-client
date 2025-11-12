@@ -2,8 +2,8 @@ import logging
 
 import pytest
 from rich.console import Console
-from rich.text import Text
 from rich.spinner import Spinner
+from rich.text import Text
 
 from qibo_client import qibo_job
 from qibo_client.qibo_job import QiboJobStatus
@@ -87,7 +87,9 @@ def test_status_icon_variants():
 
 
 def test_status_panel_pending_contains_queue_info():
-    panel = qibo_job._status_panel(QiboJobStatus.PENDING, queue_position=5, etd_seconds=125)
+    panel = qibo_job._status_panel(
+        QiboJobStatus.PENDING, queue_position=5, etd_seconds=125
+    )
     text = render_to_text(panel)
     assert "queue: 5" in text
     assert "Max ETD: 0:02:05" in text
@@ -95,7 +97,9 @@ def test_status_panel_pending_contains_queue_info():
 
 
 def test_status_panel_success_has_green_border():
-    panel = qibo_job._status_panel(QiboJobStatus.SUCCESS, queue_position=None, etd_seconds=None)
+    panel = qibo_job._status_panel(
+        QiboJobStatus.SUCCESS, queue_position=None, etd_seconds=None
+    )
     text = render_to_text(panel)
     assert "queue:" not in text
     assert panel.border_style == "green"
@@ -151,4 +155,3 @@ def test_ui_slots_renderable_and_validation():
 
     with pytest.raises(KeyError):
         ui.set("unknown", Text("fail"))
-
