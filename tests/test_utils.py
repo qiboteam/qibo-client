@@ -49,11 +49,11 @@ def test_get_request_with_404_error():
 
     responses.add(responses.GET, endpoint, json={"detail": message}, status=status_code)
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    expected_message = f"\033[91m[{status_code} Error] {message}\033[0m"
-    assert str(err.value) == expected_message
+    expected_message = f"[{status_code} Error] {message} (GET {endpoint})"
+    assert err.value.get_plain_message() == expected_message
 
 
 @responses.activate
@@ -84,11 +84,11 @@ def test_post_request_with_404_error():
         responses.POST, endpoint, json={"detail": message}, status=status_code
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.post(endpoint)
 
-    expected_message = f"\033[91m[{status_code} Error] {message}\033[0m"
-    assert str(err.value) == expected_message
+    expected_message = f"[{status_code} Error] {message} (POST {endpoint})"
+    assert err.value.get_plain_message() == expected_message
 
 
 @responses.activate
@@ -103,10 +103,10 @@ def test_request_with_invalid_json_response():
         content_type="application/json",
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert err.value.status_code == 400
+    assert err.value.status == 400
     assert "invalid json" in str(err.value)
 
 
@@ -117,11 +117,11 @@ def test_request_with_json_error_message():
     error_detail = "Something went wrong"
     responses.add(responses.GET, endpoint, json={"error": error_detail}, status=400)
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert error_detail in str(err.value)
-    assert "[400 Error]" in str(err.value)
+    expected_message = f"[400 Error] {error_detail} (GET {endpoint})"
+    assert err.value.get_plain_message() == expected_message
 
 
 @responses.activate
@@ -135,11 +135,11 @@ def test_request_with_connection_error():
         body=requests.exceptions.ConnectionError("Connection refused"),
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
     # Current implementation returns the exception’s string if it’s non-empty
-    assert err.value.status_code == 0
+    assert err.value.status == 0
     assert "Connection refused" in str(err.value)
 
 
@@ -156,7 +156,7 @@ def test_request_with_json_string_error():
         content_type="text/plain",
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
     assert error_detail in str(err.value)
@@ -171,36 +171,37 @@ def test_error_cleanup_parses_json_string_list():
     responses.add(
         responses.GET,
         endpoint,
-        json={"error": '["e1", "e2"]'},
+        json={"error": "['e1', 'e2']"},
         status=422,
         content_type="application/json",
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert err.value.status_code == 422
+    assert err.value.status == 422
     # After cleanup, the code does json.loads(...) -> list -> str(list)
     assert "['e1', 'e2']" in str(err.value)
 
 
 @responses.activate
 def test_request_exception_httpsconnectionpool_normalized_message():
-    endpoint = "http://fake.endpoint.com/api"
+    endpoint = "https://fake.endpoint.com/api"
+    message = (
+        "HTTPSConnectionPool(host='fake.endpoint.com', port=443): Max retries exceeded"
+    )
 
     responses.add(
         responses.GET,
         endpoint,
-        body=requests.exceptions.ConnectionError(
-            "HTTPSConnectionPool(host='fake.endpoint.com', port=443): Max retries exceeded"
-        ),
+        body=requests.exceptions.ConnectionError(message),
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert err.value.status_code == 0
-    assert "Could not connect to the server" in str(err.value)
+    expected_message = f"[0 Error] {message} (GET {endpoint})"
+    assert err.value.get_plain_message() == expected_message
 
 
 @responses.activate
@@ -214,10 +215,10 @@ def test_request_exception_empty_message_normalized():
         body=requests.exceptions.RequestException(""),
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert err.value.status_code == 0
+    assert err.value.status == 0
     assert "Could not connect to the server" in str(err.value)
 
 
@@ -237,11 +238,11 @@ def test_error_cleanup_json_loads_raises_valueerror():
         content_type="application/json",
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
     # We should keep the original string since cleanup except-path 'pass'es.
-    assert err.value.status_code == 400
+    assert err.value.status == 400
     assert invalid_json_like_string in str(err.value)
 
 
@@ -260,8 +261,8 @@ def test_error_cleanup_parsed_dict_picks_detail_from_inner_json_string():
         content_type="application/json",
     )
 
-    with pytest.raises(exceptions.JobApiError) as err:
+    with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    assert err.value.status_code == 400
+    assert err.value.status == 400
     assert "Nested detail message" in str(err.value)
