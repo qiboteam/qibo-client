@@ -52,9 +52,7 @@ def test_get_request_with_404_error():
     with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    expected_message = (
-        f"\x1b[91m[{status_code} Error] {message} (GET {endpoint})\x1b[0m"
-    )
+    expected_message = f"[{status_code} Error] {message} (GET {endpoint})"
     assert err.value.get_plain_message() == expected_message
 
 
@@ -89,9 +87,7 @@ def test_post_request_with_404_error():
     with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.post(endpoint)
 
-    expected_message = (
-        f"\x1b[91m[{status_code} Error] {message} (POST {endpoint})\x1b[0m"
-    )
+    expected_message = f"[{status_code} Error] {message} (POST {endpoint})"
     assert err.value.get_plain_message() == expected_message
 
 
@@ -124,7 +120,7 @@ def test_request_with_json_error_message():
     with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    expected_message = f"\x1b[91m[400 Error] {error_detail} (GET {endpoint})\x1b[0m"
+    expected_message = f"[400 Error] {error_detail} (GET {endpoint})"
     assert err.value.get_plain_message() == expected_message
 
 
@@ -204,7 +200,7 @@ def test_request_exception_httpsconnectionpool_normalized_message():
     with pytest.raises(exceptions.QiboApiError) as err:
         utils.QiboApiRequest.get(endpoint)
 
-    expected_message = f"\x1b[91m[0 Error] {message} (GET {endpoint})\x1b[0m"
+    expected_message = f"[0 Error] {message} (GET {endpoint})"
     assert err.value.get_plain_message() == expected_message
 
 

@@ -5,6 +5,7 @@ import weakref
 from contextlib import contextmanager
 
 from .errors import QiboApiError
+from ..ui.error_renderers import print_api_error
 
 _prev_sys_excepthook = None
 _prev_threading_excepthook = None
@@ -14,7 +15,7 @@ _installed = False  # idempotency guard
 
 def _qibo_sys_excepthook(exc_type, exc_value, exc_tb):
     if issubclass(exc_type, QiboApiError):
-        exc_value.print_rich()
+        print_api_error(exc_value)
         return
     if _prev_sys_excepthook is not None:
         return _prev_sys_excepthook(exc_type, exc_value, exc_tb)
@@ -23,7 +24,7 @@ def _qibo_sys_excepthook(exc_type, exc_value, exc_tb):
 
 def _qibo_threading_excepthook(args: threading.ExceptHookArgs):
     if isinstance(args.exc_value, QiboApiError):
-        args.exc_value.print_rich()
+        print_api_error(args.exc_value)
         return
     if _prev_threading_excepthook is not None:
         return _prev_threading_excepthook(args)
@@ -33,7 +34,7 @@ def _qibo_threading_excepthook(args: threading.ExceptHookArgs):
 def _qibo_asyncio_exception_handler(loop, context):
     exc = context.get("exception")
     if isinstance(exc, QiboApiError):
-        exc.print_rich()
+        print_api_error(exc)
         return
     loop.default_exception_handler(context)
 
@@ -84,9 +85,7 @@ def install_qibo_error_hooks() -> bool:
 
             shell = get_ipython()
             if shell is not None:
-                shell.set_custom_exc(
-                    (QiboApiError,), lambda et, ev, tb, tb_offset=None: ev.print_rich()
-                )
+                shell.set_custom_exc((QiboApiError,), _ipython_custom_exc_handler)
         except Exception:
             pass
 
@@ -121,3 +120,7 @@ def qibo_error_hooks():
     finally:
         if installed_now:
             uninstall_qibo_error_hooks()
+def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
+    """IPython custom exception hook: render API errors cleanly."""
+    _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters
+    print_api_error(exc_value)
