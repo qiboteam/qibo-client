@@ -133,7 +133,7 @@ def uninstall_qibo_error_hooks() -> bool:
 
 @contextmanager
 def qibo_error_hooks():
-    """Install hooks for the duration of a block. Testing utility."""
+    """Context manager that installs hooks for the duration of the block."""
     installed_now = install_qibo_error_hooks()
     try:
         yield

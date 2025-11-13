@@ -10,8 +10,9 @@ from packaging.version import Version
 from . import constants
 from .config_logging import logger
 from .exceptions import JobPostServerError
-from .qibo_job import QiboJob, build_event_job_posted_panel
+from .qibo_job import QiboJob
 from .ui import client_ui as ui
+from .ui.job_frontend import build_event_job_posted_panel
 from .utils import QiboApiRequest
 
 version = im.version(__package__)
