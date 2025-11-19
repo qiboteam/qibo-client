@@ -63,3 +63,33 @@ def test_settings_terminal(monkeypatch):
     assert settings.IS_NOTEBOOK is False
     assert settings.RICH_NOTEBOOK is False
     assert settings.USE_RICH_UI == settings.console.is_terminal
+
+
+def test_reset_console_live_state_clears_stack(monkeypatch):
+    settings = import_settings(monkeypatch, in_notebook=False, has_widgets=False)
+
+    class DummyConsole:
+        def __init__(self):
+            self._live_stack = ["a", "b", "c"]
+            self.cleared = 0
+
+        def clear_live(self):
+            self._live_stack.pop()
+            self.cleared += 1
+
+    dummy = DummyConsole()
+    monkeypatch.setattr(settings, "console", dummy)
+
+    settings.reset_console_live_state()
+
+    assert dummy._live_stack == []
+    assert dummy.cleared == 3
+
+
+def test_new_console_returns_distinct_instance(monkeypatch):
+    settings = import_settings(monkeypatch, in_notebook=False, has_widgets=False)
+
+    fresh = settings.new_console()
+
+    assert fresh is not settings.console
+    assert fresh.__class__ is settings.console.__class__

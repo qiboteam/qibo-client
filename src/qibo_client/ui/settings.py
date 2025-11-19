@@ -31,10 +31,37 @@ def _is_ipywidgets_installed() -> bool:
 IS_NOTEBOOK = _in_jupyter()
 RICH_NOTEBOOK = IS_NOTEBOOK and _is_ipywidgets_installed()
 
-console = Console(
-    force_jupyter=RICH_NOTEBOOK,
-    log_path=False,
-    log_time=True,
-)
+_CONSOLE_KWARGS = {
+    "force_jupyter": RICH_NOTEBOOK,
+    "log_path": False,
+    "log_time": True,
+}
+
+console = Console(**_CONSOLE_KWARGS)
 
 USE_RICH_UI = (not IS_NOTEBOOK and console.is_terminal) or RICH_NOTEBOOK
+
+
+def new_console() -> Console:
+    """Return a fresh Console instance with our standard configuration."""
+    return Console(**_CONSOLE_KWARGS)
+
+
+def reset_console_live_state(target: Console | None = None) -> None:
+    """Clear any stray Rich Live contexts so each job starts fresh."""
+    console_obj = target or console
+    stack = getattr(console_obj, "_live_stack", None)
+    if not stack:
+        return
+
+    cleared = 0
+    while stack:
+        try:
+            console_obj.clear_live()
+        except Exception:  # pragma: no cover - extremely defensive
+            stack.pop()
+        finally:
+            cleared += 1
+
+    if cleared:
+        logger.debug("Cleared stale Rich Live contexts: count=%s", cleared)
