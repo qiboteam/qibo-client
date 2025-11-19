@@ -12,7 +12,7 @@ MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com"
 FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
-FAKE_QIBO_CLIENT_VERSION = "0.2.0"
+FAKE_QIBO_CLIENT_VERSION = "0.2.x"
 FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
 FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.1.2a"
@@ -42,7 +42,8 @@ class TestQiboClient:
     )
     def setup_and_teardown(self, monkeypatch):
         monkeypatch.setattr(f"{MOD}.constants.BASE_URL", FAKE_URL)
-        self.obj = qibo_client.Client(FAKE_TOKEN, FAKE_URL)
+        monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
+        self.client = qibo_client.Client(FAKE_TOKEN, FAKE_URL)
         yield
 
     @pytest.fixture
@@ -58,12 +59,12 @@ class TestQiboClient:
             yield rsps
 
     def test_init_method(self):
-        assert self.obj.token == FAKE_TOKEN
-        assert self.obj.base_url == FAKE_URL
+        assert self.client.token == FAKE_TOKEN
+        assert self.client.base_url == FAKE_URL
 
-        assert self.obj.pid is None
-        assert self.obj.results_folder is None
-        assert self.obj.results_path is None
+        assert self.client.pid is None
+        assert self.client.results_folder is None
+        assert self.client.results_path is None
 
     @responses.activate
     def test_check_client_server_qibo_versions_raises_assertion_error(
@@ -79,7 +80,7 @@ class TestQiboClient:
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         with pytest.raises(AssertionError) as err:
-            self.obj.check_client_server_qibo_versions()
+            self.client.check_client_server_qibo_versions()
 
         expected_message = (
             "The qibo-client package requires an installed qibo package version"
@@ -95,7 +96,7 @@ class TestQiboClient:
         """
         caplog.set_level(logging.WARNING)
 
-        self.obj.check_client_server_qibo_versions()
+        self.client.check_client_server_qibo_versions()
 
         assert caplog.messages == []
 
@@ -113,7 +114,7 @@ class TestQiboClient:
             "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
-        self.obj.check_client_server_qibo_versions()
+        self.client.check_client_server_qibo_versions()
 
         expected_log = (
             "Local Qibo package version does not match the server one, please "
@@ -127,11 +128,10 @@ class TestQiboClient:
         response_json = {"detail": message}
         pass_version_check.add(responses.POST, endpoint, status=404, json=response_json)
 
-        with pytest.raises(exceptions.JobApiError) as err:
-            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
+        with pytest.raises(exceptions.QiboApiError) as err:
+            self.client.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
-        expected_message = f"\033[91m[404 Error] {message}\033[0m"
-        assert str(err.value) == expected_message
+        assert str(err.value) == message
 
     def test_run_circuit_with_job_post_error(self, pass_version_check):
         endpoint = FAKE_URL + "/api/jobs/"
@@ -140,7 +140,7 @@ class TestQiboClient:
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
         with pytest.raises(exceptions.JobPostServerError) as err:
-            self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
+            self.client.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_NSHOTS)
 
         assert str(err.value) == message
 
@@ -150,7 +150,9 @@ class TestQiboClient:
         response_json = {"pid": FAKE_PID}
         pass_version_check.add(responses.POST, endpoint, status=200, json=response_json)
 
-        job = self.obj.run_circuit(FAKE_CIRCUIT, FAKE_DEVICE, FAKE_PROJECT, FAKE_NSHOTS)
+        job = self.client.run_circuit(
+            FAKE_CIRCUIT, FAKE_DEVICE, FAKE_PROJECT, FAKE_NSHOTS
+        )
 
         assert job.pid == FAKE_PID
         assert job.base_url == FAKE_URL
@@ -224,7 +226,7 @@ class TestQiboClient:
             f"{expected_table}"
         )
 
-        self.obj.print_quota_info()
+        self.client.print_quota_info()
 
         assert caplog.messages == [expected_message]
 
@@ -279,7 +281,7 @@ class TestQiboClient:
         )
         expected_message = f"User: {FAKE_USER_EMAIL}\n" f"{expected_table}"
 
-        self.obj.print_job_info()
+        self.client.print_job_info()
 
         assert caplog.messages == [expected_message]
 
@@ -289,7 +291,7 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/jobs/"
         responses.add(responses.GET, endpoint, status=200, json=[])
 
-        self.obj.print_job_info()
+        self.client.print_job_info()
 
         assert caplog.messages == ["No jobs found in database for user"]
 
@@ -312,11 +314,10 @@ class TestQiboClient:
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
         with pytest.raises(ValueError):
-            self.obj.print_job_info()
+            self.client.print_job_info()
 
     @responses.activate
     def test_get_job(self, monkeypatch):
-        monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
         endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
         response_json["status"] = "queueing"
@@ -325,7 +326,7 @@ class TestQiboClient:
         response_json["projectquota"]["partition"]["name"] = FAKE_DEVICE
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
-        result = self.obj.get_job(FAKE_PID)
+        result = self.client.get_job(FAKE_PID)
 
         expected_result = QiboJob(
             pid=FAKE_PID,
@@ -347,7 +348,7 @@ class TestQiboClient:
         response_json = {"detail": f"Job {FAKE_PID} deleted"}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 
-        self.obj.delete_job(FAKE_PID)
+        self.client.delete_job(FAKE_PID)
 
     @responses.activate
     def test_delete_all_jobs(self):
@@ -355,5 +356,5 @@ class TestQiboClient:
         response_json = {"deleted": ["jobPid1", "jobPid2"]}
         responses.add(responses.DELETE, endpoint, status=200, json=response_json)
 
-        response = self.obj.delete_all_jobs()
+        response = self.client.delete_all_jobs()
         assert response == response_json["deleted"]
