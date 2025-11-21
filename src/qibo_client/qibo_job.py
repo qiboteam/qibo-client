@@ -21,7 +21,7 @@ from .ui.job_frontend import (
     build_status_panel,
     log_status_non_tty,
 )
-from .ui.settings import USE_RICH_UI, new_console, reset_console_live_state
+from .ui.settings import USE_RICH_UI, console
 from .utils import QiboApiRequest
 
 
@@ -63,30 +63,6 @@ def _save_and_unpack_stream_response_to_folder(
     archive_path = _write_stream_to_tmp_file(stream)
     _extract_archive_to_folder(archive_path, results_folder)
     archive_path.unlink()
-
-
-def _animate_live_sleep(
-    live: Live,
-    duration: float,
-    *,
-    refresh_interval: float = 0.2,
-) -> None:
-    """Sleep for `duration` seconds while manually refreshing the Live view."""
-    if duration <= 0:
-        return
-
-    end_ts = time.perf_counter() + duration
-    while True:
-        remaining = end_ts - time.perf_counter()
-        if remaining <= 0:
-            break
-
-        try:
-            live.refresh()
-        except Exception:
-            break
-
-        time.sleep(min(refresh_interval, remaining))
 
 
 # -----------------------------
@@ -213,7 +189,6 @@ class QiboJob:
         """Poll the job until completion; return (download_response, final_status)."""
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
-        seconds_between_checks = float(seconds_between_checks)
 
         # Gentle hint when not verbose
         is_job_unfinished = self.status() not in (
@@ -257,13 +232,11 @@ class QiboJob:
             ui.set("status", build_status_panel(status0.name, qpos0, etd0))
 
             outer = LiveOuter(title, ui)
-            live_console = new_console()
-            reset_console_live_state(live_console)
 
             with Live(
                 outer,
                 refresh_per_second=12,
-                console=live_console,
+                console=console,
                 transient=False,
                 vertical_overflow="visible",
             ) as live:
@@ -300,7 +273,7 @@ class QiboJob:
                         live.refresh()
                         return response, job_status
 
-                    _animate_live_sleep(live, float(seconds_between_checks))
+                    time.sleep(seconds_between_checks)
 
         last_status: T.Optional[str] = None
         printed_pending_with_info = False

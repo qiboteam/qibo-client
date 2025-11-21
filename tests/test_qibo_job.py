@@ -142,29 +142,6 @@ def test__save_and_unpack_stream_response_to_folder(monkeypatch, tmp_path: Path)
     assert not archive_path.is_file()
 
 
-def test_animate_live_sleep_calls_refresh(monkeypatch):
-    calls = []
-
-    class DummyLive:
-        def refresh(self):
-            calls.append("tick")
-
-    now = {"value": 0.0}
-
-    def fake_perf_counter():
-        return now["value"]
-
-    def fake_sleep(interval):
-        now["value"] += interval
-
-    monkeypatch.setattr(qibo_job.time, "perf_counter", fake_perf_counter)
-    monkeypatch.setattr(qibo_job.time, "sleep", fake_sleep)
-
-    qibo_job._animate_live_sleep(DummyLive(), duration=0.5, refresh_interval=0.2)
-
-    assert calls == ["tick", "tick", "tick"]
-
-
 FAKE_PID = "fakePid"
 FAKE_URL = "http://fake.endpoint.com"
 FAKE_CIRCUIT = "fakeCircuit"
