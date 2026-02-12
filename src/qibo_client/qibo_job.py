@@ -72,7 +72,7 @@ class QiboJob:
     def __init__(
         self,
         pid: str,
-        base_url: str = constants.BASE_URL,
+        base_url: str,
         headers: T.Dict[str, str] | None = None,
         circuit: T.Optional[qibo.Circuit] = None,
         nshots: T.Optional[int] = None,

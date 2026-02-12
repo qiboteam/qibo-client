@@ -21,7 +21,7 @@ version = im.version(__package__)
 class Client:
     """Class to manage the interaction with the remote server."""
 
-    def __init__(self, token: str, url: str = constants.BASE_URL):
+    def __init__(self, token: str, url: str):
         """
         :param token: the authentication token associated to the webapp user
         :type token: str

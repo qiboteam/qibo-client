@@ -41,7 +41,6 @@ class TestQiboClient:
         autouse=True,
     )
     def setup_and_teardown(self, monkeypatch):
-        monkeypatch.setattr(f"{MOD}.constants.BASE_URL", FAKE_URL)
         monkeypatch.setattr(f"{MOD}.version", FAKE_QIBO_CLIENT_VERSION)
         self.client = qibo_client.Client(FAKE_TOKEN, FAKE_URL)
         yield
