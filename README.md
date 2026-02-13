@@ -44,7 +44,8 @@ circuit = qibo.models.QFT(5)
 
 # authenticate to server through the client instance
 token = "your-token"
-client = qibo_client.Client(token)
+url = "your-api-endpoint"
+client = qibo_client.Client(token, url)
 
 # run the circuit
 device = "device_name"

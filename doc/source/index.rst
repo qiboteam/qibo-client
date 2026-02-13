@@ -51,7 +51,7 @@ receive after registration.
    >>> from qibo_client import Client
    >>> import qibo
    >>> circuit = qibo.models.QFT(5)
-   >>> client = Client("your qibo token")
+   >>> client = Client(token="your qibo token", url="api-endoint-url")
    >>> job = client.run_circuit(circuit, device="k2", project="personal", nshots=100)
    >>> result = job.result()
    >>> print(result)
