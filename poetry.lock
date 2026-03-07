@@ -1996,14 +1996,14 @@ cffi = {version = "*", markers = "implementation_name == \"pypy\""}
 
 [[package]]
 name = "qibo"
-version = "0.3.0"
+version = "0.3.1"
 description = "A framework for quantum computing with hardware acceleration."
 optional = false
 python-versions = "<3.14,>=3.10"
 groups = ["main"]
 files = [
-    {file = "qibo-0.3.0-py3-none-any.whl", hash = "sha256:37d27bcd3b49ce2969acaf10239fafd36e9d9492652ab10569cc39a93acec5a5"},
-    {file = "qibo-0.3.0.tar.gz", hash = "sha256:db6621e1e3e37edeb04c78049537cc994a22ff3197a3c58a333fea088644c67b"},
+    {file = "qibo-0.3.1-py3-none-any.whl", hash = "sha256:91b9839ee3d8e29602976696d7f0a487062a02eb34d89697320720c0752566c4"},
+    {file = "qibo-0.3.1.tar.gz", hash = "sha256:4464a9ea9573dfa601aec1fa04338a07dab34984695458ca98c20424dca84e22"},
 ]
 
 [package.dependencies]
