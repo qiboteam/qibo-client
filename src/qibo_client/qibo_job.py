@@ -1,13 +1,9 @@
 import importlib.metadata as im
-import tarfile
-import tempfile
 import time
 import typing as T
 from enum import Enum
-from pathlib import Path
 
 import qibo
-import requests
 from rich.live import Live
 
 version = im.version(__package__)
@@ -39,30 +35,6 @@ class QiboJobStatus(Enum):
     POSTPROCESSING = "postprocessing"
     SUCCESS = "success"
     ERROR = "error"
-
-
-def _write_stream_to_tmp_file(stream: T.Iterable) -> Path:
-    """Write chunk of bytes to temporary file."""
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        for chunk in stream:
-            if chunk:
-                tmp_file.write(chunk)
-        archive_path = tmp_file.name
-    return Path(archive_path)
-
-
-def _extract_archive_to_folder(source_archive: Path, destination_folder: Path):
-    with tarfile.open(source_archive, "r:gz") as archive:
-        archive.extractall(destination_folder)
-
-
-def _save_and_unpack_stream_response_to_folder(
-    stream: T.Iterable, results_folder: Path
-):
-    """Save the stream to a given folder, then unpack."""
-    archive_path = _write_stream_to_tmp_file(stream)
-    _extract_archive_to_folder(archive_path, results_folder)
-    archive_path.unlink()
 
 
 # -----------------------------
@@ -149,43 +121,31 @@ class QiboJob:
     def result(
         self, wait: float = 0.5, verbose: bool = True
     ) -> T.Optional[qibo.result.QuantumState]:
-        """Poll server until completion, then download and return result."""
-        response, job_status = self._wait_for_response_to_get_request(wait, verbose)
-
-        # create the job results folder
-        self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
-        self.results_folder.mkdir(parents=True, exist_ok=True)
-
-        # Save the stream to disk
-        try:
-            _save_and_unpack_stream_response_to_folder(
-                response.iter_content(), self.results_folder
-            )
-        except tarfile.ReadError as err:
-            logger.error("Catched tarfile ReadError: %s", err)
-            logger.error(
-                "The received file is not a valid gzip archive, the result might "
-                "have to be inspected manually. Find the file at `%s`",
-                self.results_folder.as_posix(),
-            )
-            return None
+        """Poll server until completion, then reconstruct result from snapshot data."""
+        snapshot, job_status = self._wait_for_response_to_get_request(wait, verbose)
 
         if job_status == QiboJobStatus.ERROR:
-            out_log_path = self.results_folder / "stdout.log"
-            stdout = out_log_path.read_text() if out_log_path.is_file() else "-"
-            err_log_path = self.results_folder / "stderr.log"
-            stderr = err_log_path.read_text() if err_log_path.is_file() else "-"
             logger.error(
-                "Job exited with error\n\nStdout:\n%s\n\nStderr:\n%s", stdout, stderr
+                "Job exited with error\n\nStdout:\n%s\n\nStderr:\n%s",
+                snapshot.get("stdout", "-"),
+                snapshot.get("stderr", "-"),
             )
             return None
 
-        self.results_path = self.results_folder / "results.npy"
-        return qibo.result.load_result(self.results_path)
+        circuit = qibo.Circuit.from_dict(snapshot["circuit"])
+        frequencies = snapshot.get("frequencies")
+        if circuit.measurements:
+            qubits = circuit[-1].qubits
+            return qibo.result.MeasurementOutcome.from_frequencies(
+                frequencies, qubits=qubits, nqubits=circuit.nqubits
+            )
+        return qibo.result.MeasurementOutcome.from_frequencies(
+            frequencies, nqubits=circuit.nqubits
+        )
 
     def _wait_for_response_to_get_request(
         self, seconds_between_checks: T.Optional[int] = None, verbose: bool = True
-    ) -> T.Tuple[requests.Response, QiboJobStatus]:
+    ) -> T.Tuple[T.Dict, QiboJobStatus]:
         """Poll the job until completion; return (download_response, final_status)."""
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
@@ -210,7 +170,7 @@ class QiboJob:
 
         # Small wrapper to fetch status + live fields
         def _fetch_snapshot() -> (
-            tuple[QiboJobStatus, T.Optional[int], T.Optional[int | float]]
+            tuple[QiboJobStatus, T.Optional[int], T.Optional[int | float], T.Dict]
         ):
             payload = QiboApiRequest.get(
                 url, headers=self.headers, timeout=constants.TIMEOUT
@@ -218,11 +178,11 @@ class QiboJob:
             status = convert_str_to_job_status(payload["status"])
             qpos = payload.get("queue_position", payload.get("job_queue_position"))
             etd = payload.get("etd_seconds", payload.get("seconds_to_job_start"))
-            return status, qpos, etd
+            return status, qpos, etd, payload
 
         # --- Live (TTY) branch ---
         if use_live:
-            status0, qpos0, etd0 = _fetch_snapshot()
+            status0, qpos0, etd0, _ = _fetch_snapshot()
 
             # Compose a single renderable from named slots.
             # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
@@ -242,7 +202,7 @@ class QiboJob:
             ) as live:
                 start_ts = time.perf_counter()
                 while True:
-                    job_status, qpos, etd = _fetch_snapshot()
+                    job_status, qpos, etd, payload = _fetch_snapshot()
 
                     renderable = _render(job_status, qpos, etd)
                     if renderable is not None:
@@ -252,13 +212,6 @@ class QiboJob:
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
                         elapsed = time.perf_counter() - start_ts
-
-                        # Download first so that the final banner is the *last* thing shown
-                        response = QiboApiRequest.get(
-                            self.base_url + f"/api/jobs/{self.pid}/download/",
-                            headers=self.headers,
-                            timeout=constants.TIMEOUT,
-                        )
 
                         # Replace the status slot with a compact final banner
                         ui.set(
@@ -271,7 +224,7 @@ class QiboJob:
                             ),
                         )
                         live.refresh()
-                        return response, job_status
+                        return payload, job_status
 
                     time.sleep(seconds_between_checks)
 
@@ -283,7 +236,7 @@ class QiboJob:
             logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
 
         while True:
-            job_status, qpos, etd = _fetch_snapshot()
+            job_status, qpos, etd, payload = _fetch_snapshot()
 
             # controlled, non-spam logging (prints each status once; PENDING upgraded once)
             last_status, printed_pending_with_info = log_status_non_tty(
@@ -298,12 +251,7 @@ class QiboJob:
             if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
                 if verbose:
                     logger.info("Job COMPLETED")
-                response = QiboApiRequest.get(
-                    self.base_url + f"/api/jobs/{self.pid}/download/",
-                    headers=self.headers,
-                    timeout=constants.TIMEOUT,
-                )
-                return response, job_status
+                return payload, job_status
 
             time.sleep(seconds_between_checks)
 
