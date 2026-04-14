@@ -135,11 +135,11 @@ class QiboJob:
         circuit = qibo.Circuit.from_dict(snapshot["circuit"])
         frequencies = snapshot.get("frequencies")
         if circuit.measurements:
-            qubits = circuit[-1].qubits
-            return qibo.result.MeasurementOutcome.from_frequencies(
+            qubits = circuit.measurements[-1].qubits
+            return qibo.result.MeasurementOutcomes.from_frequencies(
                 frequencies, qubits=qubits, nqubits=circuit.nqubits
             )
-        return qibo.result.MeasurementOutcome.from_frequencies(
+        return qibo.result.MeasurementOutcomes.from_frequencies(
             frequencies, nqubits=circuit.nqubits
         )
 
