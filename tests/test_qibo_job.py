@@ -1,17 +1,9 @@
-import tarfile
-from contextlib import contextmanager
-from pathlib import Path
-
 import fixs
 import jsf
 import pytest
 import responses
-import utils_test_qibo_client as utils
 
 from qibo_client import QiboJobStatus, exceptions, qibo_job
-
-ARCHIVE_NAME = "file.tar.gz"
-
 
 @pytest.mark.parametrize(
     "status, expected_result",
@@ -30,116 +22,6 @@ def test_convert_str_to_job_status(status, expected_result):
     result = qibo_job.convert_str_to_job_status(status)
     assert result == expected_result
 
-
-@pytest.fixture
-def archive_path(monkeypatch, tmp_path: Path):
-    archive_path = tmp_path / ARCHIVE_NAME
-
-    @contextmanager
-    def mock_named_tmp(delete: bool = False):
-        io_stream = archive_path.open("wb")
-        try:
-            yield io_stream
-        finally:
-            io_stream.close()
-
-    monkeypatch.setattr(
-        "qibo_client.qibo_job.tempfile.NamedTemporaryFile", mock_named_tmp
-    )
-    return archive_path
-
-
-def test__write_stream_to_tmp_file_with_simple_text_stream(
-    archive_path, tmp_path: Path
-):
-    """
-    The test contains the following checks:
-
-    - a new temporary file is created to a specific direction
-    - the content of the temporary file contains equals the one given
-    """
-    stream = [b"line1\n", b"line2\n"]
-
-    assert not archive_path.is_file()
-
-    result_path = qibo_job._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-    assert result_path.read_bytes() == b"".join(stream)
-
-
-def test__write_stream_to_tmp_file_with_archive(archive_path: Path):
-    """
-    The test contains the following checks:
-
-    - a new temporary archive is created to a specific direction
-    - load the archive in memory and check that the members and the contents
-    match with the expected ones
-    """
-    stream, members, members_contents = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    result_path = qibo_job._write_stream_to_tmp_file(stream)
-
-    assert result_path == archive_path
-    assert result_path.is_file()
-
-    with tarfile.open(result_path, "r:gz") as archive:
-        result_members = sorted(archive.getnames())
-        assert result_members == members
-        for member, member_content in zip(members, members_contents):
-            with archive.extractfile(member) as result_member:
-                result_content = result_member.read()
-            assert result_content == member_content
-
-
-def test__extract_archive_to_folder_with_non_archive_input(tmp_path):
-    file_path = tmp_path / "file.txt"
-    file_path.write_text("test content")
-
-    with pytest.raises(tarfile.ReadError):
-        qibo_job._extract_archive_to_folder(file_path, tmp_path)
-
-
-def test__extract_archive_to_folder_with_success(monkeypatch, tmp_path: Path):
-    results_base_folder = tmp_path / "results"
-    results_base_folder.mkdir()
-    archive_path = tmp_path / ARCHIVE_NAME
-    monkeypatch.setattr(
-        "qibo_client.qibo_job.constants.RESULTS_BASE_FOLDER", results_base_folder
-    )
-    members, members_contents = utils.create_fake_archive(archive_path)
-
-    qibo_job._extract_archive_to_folder(archive_path, results_base_folder)
-
-    result_members = []
-    result_members_contents = []
-    for member_path in sorted(results_base_folder.iterdir()):
-        result_members.append(member_path.name)
-        result_members_contents.append(member_path.read_bytes())
-
-    assert result_members == members
-    assert result_members_contents == members_contents
-
-
-def test__save_and_unpack_stream_response_to_folder(monkeypatch, tmp_path: Path):
-    results_base_folder = tmp_path / "results"
-    results_base_folder.mkdir()
-    archive_path = tmp_path / ARCHIVE_NAME
-    monkeypatch.setattr(
-        "qibo_client.qibo_job.constants.RESULTS_BASE_FOLDER", results_base_folder
-    )
-
-    stream, _, _ = utils.get_in_memory_fake_archive_stream()
-
-    assert not archive_path.is_file()
-
-    qibo_job._save_and_unpack_stream_response_to_folder(stream, results_base_folder)
-
-    # the archive should have been removed
-    assert not archive_path.is_file()
 
 
 FAKE_PID = "fakePid"
@@ -318,72 +200,34 @@ class TestQiboJob:
         result = self.obj.success()
         assert result == expected_result
 
-    @responses.activate
-    def test_result_handles_tarfile_readerror(self, monkeypatch, refresh_job):
-        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        responses.add(
-            responses.GET,
-            info_endpoint,
-            json={"status": "success"},
-            status=200,
-        )
-
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        responses.add(responses.GET, endpoint, status=200)
-
-        def raise_tarfile_readerror(*args):
-            raise tarfile.ReadError()
-
+    def test_result_with_job_status_error(self, monkeypatch):
+        snapshot = {"stdout": "some output", "stderr": "some error"}
         monkeypatch.setattr(
-            "qibo_client.qibo_job._save_and_unpack_stream_response_to_folder",
-            raise_tarfile_readerror,
+            self.obj,
+            "_wait_for_response_to_get_request",
+            lambda *args, **kwargs: (snapshot, QiboJobStatus.ERROR),
         )
         result = self.obj.result()
         assert result is None
 
-    @responses.activate
-    def test_result_with_job_status_error(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        responses.add(responses.GET, endpoint, status=200)
+    def test_result_with_job_status_success(self, monkeypatch):
+        class FakeCircuit:
+            measurements = []
+            nqubits = 3
 
-        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        response_json = jsf.JSF(fixs.JOB_SCHEMA).generate()
-        response_json["status"] = "error"
-        responses.add(
-            responses.GET,
-            info_endpoint,
-            json=response_json,
-            status=200,
-        )
-
+        snapshot = {"circuit": {"some": "dict"}, "frequencies": {"000": 100}}
         monkeypatch.setattr(
-            "qibo_client.qibo_job._save_and_unpack_stream_response_to_folder",
-            lambda *args: "ok",
+            self.obj,
+            "_wait_for_response_to_get_request",
+            lambda *args, **kwargs: (snapshot, QiboJobStatus.SUCCESS),
         )
-        result = self.obj.result()
-        assert result is None
-
-    @responses.activate
-    def test_result_with_job_status_success(self, monkeypatch, refresh_job):
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        responses.add(responses.GET, endpoint, status=200)
-
-        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        responses.add(
-            responses.GET,
-            info_endpoint,
-            json={"status": "success"},
-            status=200,
-        )
-
         monkeypatch.setattr(
-            "qibo_client.qibo_job._save_and_unpack_stream_response_to_folder",
-            lambda *args: "ok",
+            "qibo_client.qibo_job.qibo.Circuit.from_dict",
+            lambda x: FakeCircuit(),
         )
-
         monkeypatch.setattr(
-            "qibo_client.qibo_job.qibo.result.load_result",
-            lambda x: FAKE_RESULT,
+            "qibo_client.qibo_job.qibo.result.MeasurementOutcomes.from_frequencies",
+            lambda *args, **kwargs: FAKE_RESULT,
         )
         result = self.obj.result()
         assert result == FAKE_RESULT
@@ -413,27 +257,19 @@ class TestQiboJob:
                 json={"status": "running"},
             )
 
+        final_payload = {"status": status}
         responses.add(
             responses.GET,
             info_endpoint,
             status=200,
-            json={"status": status},
-        )
-
-        endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        response_json = {"detail": "output"}
-        responses.add(
-            responses.GET,
-            endpoint,
-            json=response_json,
-            status=200,
+            json=final_payload,
         )
 
         response, job_status = self.obj._wait_for_response_to_get_request(1e-4, False)
 
         assert job_status == expected_job_status
-        assert response.json() == response_json
-        assert len(responses.calls) == 1 + failed_attempts + 1
+        assert response == final_payload
+        assert len(responses.calls) == 1 + failed_attempts
 
         # first call is to status
         assert responses.calls[0].request.url == info_endpoint
