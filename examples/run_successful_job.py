@@ -29,5 +29,6 @@ client = Client(token)
 # run the circuit
 start = time.time()
 job = client.run_circuit(circuit, device="tii-sim", project="personal", nshots=150)
-print(job.result())
+r = job.result()
+print(r.frequencies())
 print(f"Program done in {time.time() - start:.4f}s")
