@@ -5,6 +5,7 @@ import responses
 
 from qibo_client import QiboJobStatus, exceptions, qibo_job
 
+
 @pytest.mark.parametrize(
     "status, expected_result",
     [
@@ -21,7 +22,6 @@ from qibo_client import QiboJobStatus, exceptions, qibo_job
 def test_convert_str_to_job_status(status, expected_result):
     result = qibo_job.convert_str_to_job_status(status)
     assert result == expected_result
-
 
 
 FAKE_PID = "fakePid"
