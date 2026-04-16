@@ -78,7 +78,7 @@ class TestQiboClient:
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
-        with pytest.raises(AssertionError) as err:
+        with pytest.raises(RuntimeError) as err:
             self.client.check_client_server_qibo_versions()
 
         expected_message = (

@@ -140,9 +140,3 @@ def qibo_error_hooks():
     finally:
         if installed_now:
             uninstall_qibo_error_hooks()
-
-
-def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
-    """IPython custom exception hook: render API errors cleanly."""
-    _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters
-    print_api_error(exc_value)

@@ -53,7 +53,13 @@ def _write_stream_to_tmp_file(stream: T.Iterable) -> Path:
 
 def _extract_archive_to_folder(source_archive: Path, destination_folder: Path):
     with tarfile.open(source_archive, "r:gz") as archive:
-        archive.extractall(destination_folder)
+        # Use filter='data' to prevent path traversal attacks (Python 3.12+),
+        # fall back to manual filtering for older versions.
+        try:
+            archive.extractall(destination_folder, filter="data")
+        except TypeError:
+            # Python < 3.12: filter parameter not supported
+            archive.extractall(destination_folder)
 
 
 def _save_and_unpack_stream_response_to_folder(
@@ -190,14 +196,6 @@ class QiboJob:
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
-        # Gentle hint when not verbose
-        is_job_unfinished = self.status() not in (
-            QiboJobStatus.SUCCESS,
-            QiboJobStatus.ERROR,
-        )
-        if not verbose and is_job_unfinished:
-            logger.info("Please wait until your job is completed...")
-
         url = self.base_url + f"/api/jobs/{self.pid}/"
         # Only show Rich Live in an interactive TTY or Jupyter with ipywidgets.
         use_live = verbose and USE_RICH_UI
@@ -220,9 +218,20 @@ class QiboJob:
             etd = payload.get("etd_seconds", payload.get("seconds_to_job_start"))
             return status, qpos, etd
 
+        # Initial fetch (used for both branches)
+        initial_status, initial_qpos, initial_etd = _fetch_snapshot()
+        is_job_unfinished = initial_status not in (
+            QiboJobStatus.SUCCESS,
+            QiboJobStatus.ERROR,
+        )
+
+        # Gentle hint when not verbose
+        if not verbose and is_job_unfinished:
+            logger.info("Please wait until your job is completed...")
+
         # --- Live (TTY) branch ---
         if use_live:
-            status0, qpos0, etd0 = _fetch_snapshot()
+            status0, qpos0, etd0 = initial_status, initial_qpos, initial_etd
 
             # Compose a single renderable from named slots.
             # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
@@ -282,8 +291,8 @@ class QiboJob:
             logger.info("🚀 Starting qibo client...")
             logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
 
+        job_status, qpos, etd = initial_status, initial_qpos, initial_etd
         while True:
-            job_status, qpos, etd = _fetch_snapshot()
 
             # controlled, non-spam logging (prints each status once; PENDING upgraded once)
             last_status, printed_pending_with_info = log_status_non_tty(
@@ -306,6 +315,7 @@ class QiboJob:
                 return response, job_status
 
             time.sleep(seconds_between_checks)
+            job_status, qpos, etd = _fetch_snapshot()
 
     def delete(self) -> str:
         url = self.base_url + f"/api/jobs/{self.pid}/"

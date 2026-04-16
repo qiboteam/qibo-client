@@ -49,18 +49,19 @@ class Client:
             keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
         )
 
-        qibo_server_version = Version(response.json()["server_qibo_version"])
+        response_data = response.json()
+        qibo_server_version = Version(response_data["server_qibo_version"])
         qibo_minimum_client_version = Version(
-            response.json()["minimum_client_qibo_version"]
+            response_data["minimum_client_qibo_version"]
         )
 
         qibo_client_version = Version(qibo.__version__)
-        msg = (
-            "The qibo-client package requires an installed qibo package version"
-            f">={qibo_minimum_client_version}, the local qibo "
-            f"version is {qibo_client_version}"
-        )
-        assert qibo_client_version >= qibo_minimum_client_version, msg
+        if qibo_client_version < qibo_minimum_client_version:
+            raise RuntimeError(
+                "The qibo-client package requires an installed qibo package version"
+                f">={qibo_minimum_client_version}, the local qibo "
+                f"version is {qibo_client_version}"
+            )
 
         if qibo_client_version < qibo_server_version:
             logger.warning(
@@ -113,7 +114,7 @@ class Client:
         project: str,
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
-    ) -> QiboJob | None:
+    ) -> QiboJob:
         url = self.base_url + "/api/jobs/"
 
         payload = {
