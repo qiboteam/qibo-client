@@ -340,19 +340,19 @@ class LiveOuter:
 def _build_event_panel(
     title: str, subtitle: str | None = None, *, icon: str = ">"
 ) -> Panel:
-    row = Table.grid(expand=True)
-    row.add_column(ratio=3, justify="left", no_wrap=True)
-    row.add_column(ratio=2, justify="right", no_wrap=True)
+    content = Table.grid(padding=(0, 1))
+    content.add_column(no_wrap=True)
+    content.add_column(no_wrap=False)
+    content.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
 
-    left = Table.grid(padding=(0, 1))
-    left.add_column(no_wrap=True)
-    left.add_column(no_wrap=True)
-    left.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
-
-    right = "" if subtitle is None else Text(subtitle, style="dim")
-    row.add_row(left, right)
-
-    return Panel(row, box=box.ROUNDED, border_style=CLR_PRIMARY, expand=True)
+    return Panel(
+        content,
+        box=box.ROUNDED,
+        border_style=CLR_PRIMARY,
+        expand=True,
+        subtitle=Text(subtitle, style="dim") if subtitle else None,
+        subtitle_align="right",
+    )
 
 
 def build_event_job_posted_panel(
