@@ -63,3 +63,26 @@ def test_settings_terminal(monkeypatch):
     assert settings.IS_NOTEBOOK is False
     assert settings.RICH_NOTEBOOK is False
     assert settings.USE_RICH_UI == settings.console.is_terminal
+
+
+def test_settings_ipython_import_raises_module_not_found(monkeypatch):
+    """Cover settings.py lines 13-14: _in_jupyter returns False when IPython not installed."""
+    sys.modules.pop(MODULE_PATH, None)
+
+    # Remove IPython from sys.modules so the import inside _in_jupyter is attempted fresh
+    sys.modules.pop("IPython", None)
+
+    real_import = builtins.__import__
+
+    def fake_import(name, *args, **kwargs):
+        if name == "IPython":
+            raise ModuleNotFoundError("No module named 'IPython'")
+        if name == "ipywidgets":
+            raise ModuleNotFoundError("ipywidgets missing")
+        return real_import(name, *args, **kwargs)
+
+    monkeypatch.setattr(builtins, "__import__", fake_import)
+
+    settings = importlib.import_module(MODULE_PATH)
+
+    assert settings.IS_NOTEBOOK is False

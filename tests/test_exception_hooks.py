@@ -252,3 +252,32 @@ def test_uninstall_asyncio_handler_handles_exception(hooks):
     # Should not raise
     hooks._uninstall_asyncio_handler_all_known_loops()
     assert loop not in hooks._prev_asyncio_handlers
+
+
+def test_exceptions_init_auto_install_catches_exception(monkeypatch):
+    """Cover exceptions/__init__.py lines 22-24: install_qibo_error_hooks raises."""
+    import qibo_client.exceptions as exc_mod
+    import qibo_client.exceptions.hooks as hooks_mod
+
+    # Ensure clean state
+    hooks_mod.uninstall_qibo_error_hooks()
+
+    # Patch at the hooks module level so reload picks it up
+    original = hooks_mod.install_qibo_error_hooks
+
+    def bad_install():
+        raise RuntimeError("boom")
+
+    hooks_mod.install_qibo_error_hooks = bad_install
+    monkeypatch.setenv("QIBO_API_ERRORS_AUTO", "1")
+
+    try:
+        # Remove cached module so reload re-executes __init__.py
+        import sys
+
+        sys.modules.pop("qibo_client.exceptions", None)
+        importlib.import_module("qibo_client.exceptions")
+        # If we get here, the except branch caught the error
+    finally:
+        hooks_mod.install_qibo_error_hooks = original
+        hooks_mod.install_qibo_error_hooks()

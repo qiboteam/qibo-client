@@ -175,6 +175,19 @@ def test_non_blocking_key_reader_non_tty(monkeypatch):
         assert reader.get_key() is None
 
 
+def test_non_blocking_key_reader_not_isatty(monkeypatch):
+    """Cover lines 98-99: fileno succeeds but isatty returns False."""
+    fake_fd = 99
+    monkeypatch.setattr(
+        "sys.stdin", type("FakeStdin", (), {"fileno": lambda self: fake_fd})()
+    )
+    monkeypatch.setattr(job_frontend.os, "isatty", lambda fd: False)
+
+    with job_frontend.NonBlockingKeyReader() as reader:
+        assert not reader.active
+        assert reader._fd is None
+
+
 def test_capture_circuit_drawing_none():
     assert job_frontend._capture_circuit_drawing(None) is None
 
@@ -396,3 +409,72 @@ def test_final_banner_no_device_no_nshots():
     )
     text = render_to_text(panel)
     assert "pid pid-1" in text
+
+
+def test_non_blocking_key_reader_tty_path(monkeypatch):
+    """Cover NonBlockingKeyReader lines 97-102, 110: full TTY enter/exit/get_key."""
+    fake_fd = 99
+    old_settings = [1, 2, 3]  # fake termios settings
+
+    monkeypatch.setattr(
+        "sys.stdin", type("FakeStdin", (), {"fileno": lambda self: fake_fd})()
+    )
+    monkeypatch.setattr(job_frontend.os, "isatty", lambda fd: True)
+    monkeypatch.setattr(job_frontend.termios, "tcgetattr", lambda fd: old_settings)
+    monkeypatch.setattr(job_frontend.tty, "setcbreak", lambda fd: None)
+
+    restore_calls = []
+    monkeypatch.setattr(
+        job_frontend.termios,
+        "tcsetattr",
+        lambda fd, when, settings: restore_calls.append((fd, when, settings)),
+    )
+
+    with job_frontend.NonBlockingKeyReader() as reader:
+        assert reader.active is True
+        assert reader._fd == fake_fd
+        assert reader._old_settings == old_settings
+
+    # __exit__ should have restored settings
+    assert len(restore_calls) == 1
+    assert restore_calls[0][0] == fake_fd
+    assert restore_calls[0][2] == old_settings
+
+
+def test_non_blocking_key_reader_get_key_with_data(monkeypatch):
+    """Cover NonBlockingKeyReader lines 116-119: get_key when data available."""
+    reader = job_frontend.NonBlockingKeyReader()
+    reader._fd = 99
+    reader.active = True
+
+    monkeypatch.setattr(
+        job_frontend.select, "select", lambda r, w, x, t: ([99], [], [])
+    )
+    monkeypatch.setattr(job_frontend.os, "read", lambda fd, n: b"x")
+
+    assert reader.get_key() == "x"
+
+
+def test_non_blocking_key_reader_get_key_no_data(monkeypatch):
+    """Cover NonBlockingKeyReader line 119: get_key returns None when no data."""
+    reader = job_frontend.NonBlockingKeyReader()
+    reader._fd = 99
+    reader.active = True
+
+    monkeypatch.setattr(job_frontend.select, "select", lambda r, w, x, t: ([], [], []))
+
+    assert reader.get_key() is None
+
+
+def test_elapsed_timer_rich_measure():
+    """Cover ElapsedTimer.__rich_measure__ lines 269-271."""
+    import time
+
+    from rich.measure import Measurement
+
+    timer = job_frontend.ElapsedTimer(start_time=time.perf_counter())
+    c = Console(width=80)
+    m = timer.__rich_measure__(c, c.options)
+    assert isinstance(m, Measurement)
+    assert m.minimum == 15
+    assert m.maximum == 25

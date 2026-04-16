@@ -537,3 +537,217 @@ def test_extract_archive_to_folder_fallback(monkeypatch, tmp_path):
     qibo_job._extract_archive_to_folder(archive_path, dest)
     assert (dest / "test.txt").exists()
     assert call_count[0] == 2  # first call raises, second succeeds
+
+
+class TestLiveTTYBranch:
+    """Cover qibo_job.py lines 214-334: the Live (Rich UI) polling branch."""
+
+    @pytest.fixture(autouse=True)
+    def setup(self, monkeypatch):
+        self.obj = qibo_job.QiboJob(FAKE_PID, FAKE_URL, device=FAKE_DEVICE)
+        # Force the live branch
+        monkeypatch.setattr("qibo_client.qibo_job.USE_RICH_UI", True)
+        monkeypatch.setattr("qibo_client.qibo_job.constants.TIMEOUT", 2)
+
+    @responses.activate
+    def test_live_branch_immediate_success(self, monkeypatch):
+        """Job already SUCCESS on first fetch -> enters live branch, renders final banner, returns."""
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        # Initial fetch
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        # Loop fetch
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        # Download
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(
+            responses.GET, download_endpoint, json={"data": "result"}, status=200
+        )
+
+        # Use a non-interactive console to avoid TTY issues
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True
+        )
+        assert job_status == qibo_job.QiboJobStatus.SUCCESS
+        assert response.json() == {"data": "result"}
+
+    @responses.activate
+    def test_live_branch_polls_then_success(self, monkeypatch):
+        """Job transitions PENDING -> SUCCESS in the live branch."""
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        # Initial fetch
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "pending", "queue_position": 2, "etd_seconds": 60},
+            status=200,
+        )
+        # Loop fetch 1: still pending
+        responses.add(
+            responses.GET,
+            info_endpoint,
+            json={"status": "pending", "queue_position": 1, "etd_seconds": 30},
+            status=200,
+        )
+        # Loop fetch 2: success
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        # Download
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
+
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True
+        )
+        assert job_status == qibo_job.QiboJobStatus.SUCCESS
+
+    @responses.activate
+    def test_live_branch_error(self, monkeypatch):
+        """Job ERROR in live branch."""
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "error"}, status=200
+        )
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "error"}, status=200
+        )
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(
+            responses.GET, download_endpoint, json={"data": "err"}, status=200
+        )
+
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True
+        )
+        assert job_status == qibo_job.QiboJobStatus.ERROR
+
+    @responses.activate
+    def test_live_branch_postprocessing_then_success(self, monkeypatch):
+        """Cover _render returning None for POSTPROCESSING (lines 214-216)."""
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        # Initial: running
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "running"}, status=200
+        )
+        # Loop 1: postprocessing (should skip render update)
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "postprocessing"}, status=200
+        )
+        # Loop 2: success
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
+
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True
+        )
+        assert job_status == qibo_job.QiboJobStatus.SUCCESS
+
+    @responses.activate
+    def test_live_branch_with_circuit(self, monkeypatch):
+        """Cover circuit panel and show_circuit=True path (lines 264-271)."""
+        import qibo
+
+        circ = qibo.Circuit(2)
+        circ.add(qibo.gates.H(0))
+        self.obj.circuit = circ.raw
+
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
+
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True, show_circuit=True
+        )
+        assert job_status == qibo_job.QiboJobStatus.SUCCESS
+
+    @responses.activate
+    def test_live_branch_keyboard_toggle(self, monkeypatch):
+        """Cover lines 293-300: keyboard 'c' toggles circuit visibility."""
+        from unittest.mock import MagicMock
+
+        import qibo
+
+        circ = qibo.Circuit(2)
+        circ.add(qibo.gates.H(0))
+        self.obj.circuit = circ.raw
+
+        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
+        # Initial fetch: pending
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "pending"}, status=200
+        )
+        # Loop 1: still pending (keyboard 'c' pressed)
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "pending"}, status=200
+        )
+        # Loop 2: success
+        responses.add(
+            responses.GET, info_endpoint, json={"status": "success"}, status=200
+        )
+        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
+        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
+
+        from rich.console import Console
+
+        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
+        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
+
+        # Mock NonBlockingKeyReader to simulate active TTY with key 'c' pressed once
+        key_sequence = iter(["c", None, None, None])
+
+        class FakeKeyReader:
+            active = True
+
+            def __enter__(self):
+                return self
+
+            def __exit__(self, *exc):
+                pass
+
+            def get_key(self):
+                return next(key_sequence, None)
+
+        monkeypatch.setattr("qibo_client.qibo_job.NonBlockingKeyReader", FakeKeyReader)
+
+        response, job_status = self.obj._wait_for_response_to_get_request(
+            1e-4, verbose=True, show_circuit=False
+        )
+        assert job_status == qibo_job.QiboJobStatus.SUCCESS
