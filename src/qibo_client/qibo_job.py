@@ -15,8 +15,10 @@ version = im.version(__package__)
 from . import constants
 from .config_logging import logger
 from .ui.job_frontend import (
+    ElapsedTimer,
     LiveOuter,
     UISlots,
+    build_circuit_panel,
     build_final_banner,
     build_status_panel,
     log_status_non_tty,
@@ -153,10 +155,12 @@ class QiboJob:
 
     # ---- main wait loop ----
     def result(
-        self, wait: float = 0.5, verbose: bool = True
+        self, wait: float = 0.5, verbose: bool = True, show_circuit: bool = True
     ) -> T.Optional[qibo.result.QuantumState]:
         """Poll server until completion, then download and return result."""
-        response, job_status = self._wait_for_response_to_get_request(wait, verbose)
+        response, job_status = self._wait_for_response_to_get_request(
+            wait, verbose, show_circuit=show_circuit
+        )
 
         # create the job results folder
         self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
@@ -190,7 +194,11 @@ class QiboJob:
         return qibo.result.load_result(self.results_path)
 
     def _wait_for_response_to_get_request(
-        self, seconds_between_checks: T.Optional[int] = None, verbose: bool = True
+        self,
+        seconds_between_checks: T.Optional[int] = None,
+        verbose: bool = True,
+        *,
+        show_circuit: bool = True,
     ) -> T.Tuple[requests.Response, QiboJobStatus]:
         """Poll the job until completion; return (download_response, final_status)."""
         if seconds_between_checks is None:
@@ -201,10 +209,10 @@ class QiboJob:
         use_live = verbose and USE_RICH_UI
 
         # Render policy: don't update during POSTPROCESSING so previous panel stays visible
-        def _render(status: QiboJobStatus, qpos, etd):
+        def _render(status: QiboJobStatus, qpos, etd, timer=None):
             if status == QiboJobStatus.POSTPROCESSING:
                 return None
-            return build_status_panel(status.name, qpos, etd)
+            return build_status_panel(status.name, qpos, etd, elapsed_timer=timer)
 
         # Small wrapper to fetch status + live fields
         def _fetch_snapshot() -> (
@@ -232,13 +240,24 @@ class QiboJob:
         # --- Live (TTY) branch ---
         if use_live:
             status0, qpos0, etd0 = initial_status, initial_qpos, initial_etd
+            elapsed_timer = ElapsedTimer()
 
             # Compose a single renderable from named slots.
-            # You can add more slots later (e.g., "header", "footer") without changing Live plumbing.
-            ui = UISlots(order=("header", "status", "footer"))
+            ui = UISlots(order=("header", "circuit", "status", "footer"))
             title = f"Qibo client version {version}"
             ui.set("header", self._preamble)
-            ui.set("status", build_status_panel(status0.name, qpos0, etd0))
+            ui.set(
+                "status",
+                build_status_panel(
+                    status0.name, qpos0, etd0, elapsed_timer=elapsed_timer
+                ),
+            )
+
+            # Circuit panel (optional)
+            if show_circuit and self.circuit is not None:
+                circuit_panel = build_circuit_panel(self.circuit)
+                if circuit_panel is not None:
+                    ui.set("circuit", circuit_panel)
 
             outer = LiveOuter(title, ui)
 
@@ -249,18 +268,17 @@ class QiboJob:
                 transient=False,
                 vertical_overflow="visible",
             ) as live:
-                start_ts = time.perf_counter()
                 while True:
                     job_status, qpos, etd = _fetch_snapshot()
 
-                    renderable = _render(job_status, qpos, etd)
+                    renderable = _render(job_status, qpos, etd, timer=elapsed_timer)
                     if renderable is not None:
                         # Swap the status slot in place
                         ui.set("status", renderable)
                         live.refresh()
 
                     if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                        elapsed = time.perf_counter() - start_ts
+                        elapsed = time.perf_counter() - elapsed_timer.start_time
 
                         # Download first so that the final banner is the *last* thing shown
                         response = QiboApiRequest.get(
