@@ -341,12 +341,12 @@ def _build_event_panel(
     title: str, subtitle: str | None = None, *, icon: str = ">"
 ) -> Panel:
     row = Table.grid(expand=True)
-    row.add_column(ratio=3, justify="left", no_wrap=False)
+    row.add_column(ratio=3, justify="left", no_wrap=True)
     row.add_column(ratio=2, justify="right", no_wrap=True)
 
     left = Table.grid(padding=(0, 1))
     left.add_column(no_wrap=True)
-    left.add_column(no_wrap=False)
+    left.add_column(no_wrap=True)
     left.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
 
     right = "" if subtitle is None else Text(subtitle, style="dim")
@@ -356,14 +356,17 @@ def _build_event_panel(
 
 
 def build_event_job_posted_panel(
-    device: str, pid: str, nshots: int | None = None
+    device: str,
+    pid: str,
+    nshots: int | None = None,
+    project: str | None = None,
 ) -> Panel:
-    parts = []
+    title = f"Job posted on {device}"
+    if project is not None:
+        title += f" - project {project}"
     if nshots is not None:
-        parts.append(f"nshots {nshots}")
-    parts.append(f"pid {pid}")
-    subtitle = "  ".join(parts)
-    return _build_event_panel(f"Job posted on {device}", subtitle=subtitle, icon=">")
+        title += f" - nshots {nshots}"
+    return _build_event_panel(title, subtitle=f"pid {pid}", icon=">")
 
 
 # ---------------------------------------------------------------------------

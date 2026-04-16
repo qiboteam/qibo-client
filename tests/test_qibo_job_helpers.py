@@ -393,6 +393,24 @@ def test_build_event_job_posted_panel_with_nshots():
     assert "pid pid-1" in text
 
 
+def test_build_event_job_posted_panel_with_project():
+    panel = job_frontend.build_event_job_posted_panel(
+        "dev", "p1", nshots=10, project="prj"
+    )
+    text = render_to_text(panel)
+    assert "project prj" in text
+    assert "nshots 10" in text
+    assert "pid p1" in text
+
+
+def test_build_event_job_posted_panel_project_without_nshots():
+    panel = job_frontend.build_event_job_posted_panel("dev", "p1", project="prj")
+    text = render_to_text(panel)
+    assert "project prj" in text
+    assert "nshots" not in text
+    assert "pid p1" in text
+
+
 def test_final_banner_error():
     panel = job_frontend.build_final_banner(
         "ERROR", pid="pid-err", device="qpu-x", elapsed_seconds=45
