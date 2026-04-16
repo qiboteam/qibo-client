@@ -17,6 +17,7 @@ from .config_logging import logger
 from .ui.job_frontend import (
     ElapsedTimer,
     LiveOuter,
+    NonBlockingKeyReader,
     UISlots,
     build_circuit_panel,
     build_final_banner,
@@ -155,7 +156,7 @@ class QiboJob:
 
     # ---- main wait loop ----
     def result(
-        self, wait: float = 0.5, verbose: bool = True, show_circuit: bool = True
+        self, wait: float = 0.5, verbose: bool = True, show_circuit: bool = False
     ) -> T.Optional[qibo.result.QuantumState]:
         """Poll server until completion, then download and return result."""
         response, job_status = self._wait_for_response_to_get_request(
@@ -198,7 +199,7 @@ class QiboJob:
         seconds_between_checks: T.Optional[int] = None,
         verbose: bool = True,
         *,
-        show_circuit: bool = True,
+        show_circuit: bool = False,
     ) -> T.Tuple[requests.Response, QiboJobStatus]:
         """Poll the job until completion; return (download_response, final_status)."""
         if seconds_between_checks is None:
@@ -212,7 +213,9 @@ class QiboJob:
         def _render(status: QiboJobStatus, qpos, etd, timer=None):
             if status == QiboJobStatus.POSTPROCESSING:
                 return None
-            return build_status_panel(status.name, qpos, etd, elapsed_timer=timer)
+            return build_status_panel(
+                status.name, qpos, etd, elapsed_timer=timer, nshots=self.nshots
+            )
 
         # Small wrapper to fetch status + live fields
         def _fetch_snapshot() -> (
@@ -249,65 +252,93 @@ class QiboJob:
             ui.set(
                 "status",
                 build_status_panel(
-                    status0.name, qpos0, etd0, elapsed_timer=elapsed_timer
+                    status0.name,
+                    qpos0,
+                    etd0,
+                    elapsed_timer=elapsed_timer,
+                    nshots=self.nshots,
                 ),
             )
 
-            # Circuit panel (optional)
-            if show_circuit and self.circuit is not None:
+            # Circuit panel (optional, togglable with 'c')
+            circuit_visible = show_circuit
+            circuit_panel = None
+            if self.circuit is not None:
                 circuit_panel = build_circuit_panel(self.circuit)
-                if circuit_panel is not None:
-                    ui.set("circuit", circuit_panel)
+            if circuit_visible and circuit_panel is not None:
+                ui.set("circuit", circuit_panel)
 
-            outer = LiveOuter(title, ui)
+            has_circuit = circuit_panel is not None
 
-            with Live(
-                outer,
-                refresh_per_second=12,
-                console=console,
-                transient=False,
-                vertical_overflow="visible",
-            ) as live:
-                while True:
-                    job_status, qpos, etd = _fetch_snapshot()
+            with NonBlockingKeyReader() as keys:
+                keybind_hint = (
+                    "[dim]press [bold]c[/bold] to toggle circuit[/]"
+                    if has_circuit and keys.active
+                    else None
+                )
+                outer = LiveOuter(
+                    title, ui, elapsed_timer=elapsed_timer, keybind_hint=keybind_hint
+                )
 
-                    renderable = _render(job_status, qpos, etd, timer=elapsed_timer)
-                    if renderable is not None:
-                        # Swap the status slot in place
-                        ui.set("status", renderable)
-                        live.refresh()
+                with Live(
+                    outer,
+                    refresh_per_second=12,
+                    console=console,
+                    transient=False,
+                    vertical_overflow="visible",
+                ) as live:
+                    while True:
+                        # Check for keyboard toggle
+                        if has_circuit and keys.active:
+                            key = keys.get_key()
+                            if key == "c":
+                                circuit_visible = not circuit_visible
+                                ui.set(
+                                    "circuit",
+                                    circuit_panel if circuit_visible else None,
+                                )
+                                live.refresh()
 
-                    if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                        elapsed = time.perf_counter() - elapsed_timer.start_time
+                        job_status, qpos, etd = _fetch_snapshot()
 
-                        # Download first so that the final banner is the *last* thing shown
-                        response = QiboApiRequest.get(
-                            self.base_url + f"/api/jobs/{self.pid}/download/",
-                            headers=self.headers,
-                            timeout=constants.TIMEOUT,
-                        )
+                        renderable = _render(job_status, qpos, etd, timer=elapsed_timer)
+                        if renderable is not None:
+                            # Swap the status slot in place
+                            ui.set("status", renderable)
+                            live.refresh()
 
-                        # Replace the status slot with a compact final banner
-                        ui.set(
-                            "status",
-                            build_final_banner(
-                                job_status.name,
-                                pid=self.pid,
-                                device=self.device,
-                                elapsed_seconds=elapsed,
-                            ),
-                        )
-                        live.refresh()
-                        return response, job_status
+                        if job_status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
+                            elapsed = time.perf_counter() - elapsed_timer.start_time
 
-                    time.sleep(seconds_between_checks)
+                            # Download first so that the final banner is the *last* thing shown
+                            response = QiboApiRequest.get(
+                                self.base_url + f"/api/jobs/{self.pid}/download/",
+                                headers=self.headers,
+                                timeout=constants.TIMEOUT,
+                            )
+
+                            # Replace the status slot with a compact final banner
+                            ui.set(
+                                "status",
+                                build_final_banner(
+                                    job_status.name,
+                                    pid=self.pid,
+                                    device=self.device,
+                                    elapsed_seconds=elapsed,
+                                    nshots=self.nshots,
+                                ),
+                            )
+                            live.refresh()
+                            return response, job_status
+
+                        time.sleep(seconds_between_checks)
 
         last_status: T.Optional[str] = None
         printed_pending_with_info = False
 
         if verbose and is_job_unfinished:
-            logger.info("🚀 Starting qibo client...")
-            logger.info("📬 Job posted on %s with pid, %s", self.device, self.pid)
+            logger.info("> Starting qibo client...")
+            logger.info("> Job posted on %s with pid, %s", self.device, self.pid)
 
         job_status, qpos, etd = initial_status, initial_qpos, initial_etd
         while True:

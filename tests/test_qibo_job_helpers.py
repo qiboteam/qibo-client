@@ -42,7 +42,7 @@ def test_log_status_non_tty_logs_once_per_status(caplog):
 
     assert last == "SUCCESS"
     assert printed is False
-    assert caplog.messages[-1] == "✅ Job SUCCESS"
+    assert caplog.messages[-1] == "+ Job SUCCESS"
 
 
 def test_log_status_non_tty_pending_upgrades_once(caplog):
@@ -56,7 +56,7 @@ def test_log_status_non_tty_pending_upgrades_once(caplog):
         etd=None,
     )
 
-    assert caplog.messages[-1] == "🕒 Job PENDING"
+    assert caplog.messages[-1] == "* Job PENDING"
     caplog.clear()
 
     last, printed = job_frontend.log_status_non_tty(
@@ -70,8 +70,7 @@ def test_log_status_non_tty_pending_upgrades_once(caplog):
 
     assert printed is True
     assert (
-        caplog.messages[-1]
-        == "🕒 Job PENDING -> position in queue: 3, max ETD: 0:02:00"
+        caplog.messages[-1] == "* Job PENDING -> position in queue: 3, max ETD: 0:02:00"
     )
 
 
@@ -83,7 +82,7 @@ def test_status_icon_variants():
 
     success_icon = job_frontend._status_icon("SUCCESS")
     assert isinstance(success_icon, Text)
-    assert success_icon.plain == "✅"
+    assert success_icon.plain == "+"
 
 
 def test_status_panel_pending_contains_queue_info():

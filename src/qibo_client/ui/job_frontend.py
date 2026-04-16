@@ -3,8 +3,12 @@
 from __future__ import annotations
 
 import io
+import os
+import select
 import sys
+import termios
 import time
+import tty
 import typing as T
 
 from rich import box
@@ -40,12 +44,12 @@ CLR_CIRCUIT = "cyan"
 STAGES = ("QUEUEING", "PENDING", "RUNNING", "POSTPROCESSING", "SUCCESS")
 
 _STAGE_ICONS: dict[str, str] = {
-    "QUEUEING": "⏳",
-    "PENDING": "🕒",
-    "RUNNING": "🚀",
-    "POSTPROCESSING": "⚙️",
-    "SUCCESS": "✅",
-    "ERROR": "❌",
+    "QUEUEING": "*",
+    "PENDING": "*",
+    "RUNNING": ">",
+    "POSTPROCESSING": "~",
+    "SUCCESS": "+",
+    "ERROR": "x",
 }
 
 _STAGE_STYLE: dict[str, str] = {
@@ -77,6 +81,42 @@ def format_hms(seconds: int | float | None) -> str:
     h, rem = divmod(total, 3600)
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}"
+
+
+class NonBlockingKeyReader:
+    """Context manager that puts stdin into raw/non-blocking mode for keypress detection."""
+
+    def __init__(self):
+        self._fd: int | None = None
+        self._old_settings = None
+        self.active: bool = False
+
+    def __enter__(self):
+        try:
+            self._fd = sys.stdin.fileno()
+            if not os.isatty(self._fd):
+                self._fd = None
+                return self
+            self._old_settings = termios.tcgetattr(self._fd)
+            tty.setcbreak(self._fd)
+            self.active = True
+        except (termios.error, ValueError, io.UnsupportedOperation, OSError):
+            # Not a real TTY (e.g. Jupyter, piped stdin, CI) – degrade gracefully
+            self._fd = None
+        return self
+
+    def __exit__(self, *exc):
+        if self._fd is not None and self._old_settings is not None:
+            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_settings)
+
+    def get_key(self) -> str | None:
+        """Return a single character if a key was pressed, else None."""
+        if self._fd is None:
+            return None
+        rlist, _, _ = select.select([self._fd], [], [], 0)
+        if rlist:
+            return os.read(self._fd, 1).decode("utf-8", errors="ignore")
+        return None
 
 
 def _capture_circuit_drawing(circuit_dict: dict | None) -> str | None:
@@ -140,28 +180,28 @@ def log_status_non_tty(
 
     if job_status != last_status:
         if job_status == "QUEUEING":
-            logger.info("⏳ Job QUEUEING")
+            logger.info("* Job QUEUEING")
         elif job_status == "PENDING":
             if qpos is not None or etd is not None:
                 logger.info(
-                    "🕒 Job PENDING -> position in queue: %s, max ETD: %s",
+                    "* Job PENDING -> position in queue: %s, max ETD: %s",
                     "-" if qpos is None else qpos,
                     format_hms(etd),
                 )
                 printed_pending_with_info = True
             else:
-                logger.info("🕒 Job PENDING")
+                logger.info("* Job PENDING")
         elif job_status == "RUNNING":
-            logger.info("🚀 Job RUNNING")
+            logger.info("> Job RUNNING")
         elif job_status in ("SUCCESS", "ERROR"):
-            icon = "✅" if job_status == "SUCCESS" else "❌"
+            icon = "+" if job_status == "SUCCESS" else "x"
             logger.info("%s Job %s", icon, job_status)
         last_status = job_status
     else:
         if job_status == "PENDING" and not printed_pending_with_info:
             if qpos is not None or etd is not None:
                 logger.info(
-                    "🕒 Job PENDING -> position in queue: %s, max ETD: %s",
+                    "* Job PENDING -> position in queue: %s, max ETD: %s",
                     "-" if qpos is None else qpos,
                     format_hms(etd),
                 )
@@ -234,25 +274,59 @@ class ElapsedTimer:
 # ---------------------------------------------------------------------------
 # Outer container
 # ---------------------------------------------------------------------------
-def _outer_container(title: str, inner: RenderableType) -> RenderableType:
+def _outer_container(
+    title: str,
+    inner: RenderableType,
+    *,
+    elapsed_timer: ElapsedTimer | None = None,
+    keybind_hint: str | None = None,
+) -> RenderableType:
     grid = Table.grid(expand=True)
     grid.add_column(ratio=1)
-    grid.add_row(Rule(title=f"[{CLR_PRIMARY_BOLD}]{title}[/]", style=CLR_PRIMARY))
+    grid.add_row(Rule(title=Text(title, style="bold"), style="default"))
     grid.add_row(inner)
-    grid.add_row(Rule(style=CLR_PRIMARY))
+
+    # Build bottom rule parts
+    bottom_title = None
+    if elapsed_timer is not None or keybind_hint is not None:
+        parts = Text()
+        if elapsed_timer is not None:
+            elapsed = time.perf_counter() - elapsed_timer.start_time
+            parts.append("elapsed ", style="dim")
+            parts.append(format_hms(elapsed), style="bold")
+        if keybind_hint is not None:
+            if len(parts):
+                parts.append("  ")
+            parts.append_text(Text.from_markup(keybind_hint))
+        bottom_title = parts
+    grid.add_row(Rule(title=bottom_title, style="default"))
     return grid
 
 
 class LiveOuter:
     """Stable outer container that always wraps the current UI slots."""
 
-    def __init__(self, title: str, ui: UISlots):
+    def __init__(
+        self,
+        title: str,
+        ui: UISlots,
+        *,
+        elapsed_timer: ElapsedTimer | None = None,
+        keybind_hint: str | None = None,
+    ):
         self.title = title
         self.ui = ui
+        self.elapsed_timer = elapsed_timer
+        self.keybind_hint = keybind_hint
 
     def __rich_console__(self, console: Console, options):
         inner = self.ui.renderable()
-        yield _outer_container(self.title, inner)
+        yield _outer_container(
+            self.title,
+            inner,
+            elapsed_timer=self.elapsed_timer,
+            keybind_hint=self.keybind_hint,
+        )
 
     def __rich_measure__(self, console: Console, options):
         from rich.measure import Measurement
@@ -264,7 +338,7 @@ class LiveOuter:
 # Event panel (job posted)
 # ---------------------------------------------------------------------------
 def _build_event_panel(
-    title: str, subtitle: str | None = None, *, icon: str = "📝"
+    title: str, subtitle: str | None = None, *, icon: str = ">"
 ) -> Panel:
     row = Table.grid(expand=True)
     row.add_column(ratio=3, justify="left", no_wrap=False)
@@ -281,10 +355,15 @@ def _build_event_panel(
     return Panel(row, box=box.ROUNDED, border_style=CLR_PRIMARY, expand=True)
 
 
-def build_event_job_posted_panel(device: str, pid: str) -> Panel:
-    return _build_event_panel(
-        f"Job posted on {device}", subtitle=f"pid {pid}", icon="📬"
-    )
+def build_event_job_posted_panel(
+    device: str, pid: str, nshots: int | None = None
+) -> Panel:
+    parts = []
+    if nshots is not None:
+        parts.append(f"nshots {nshots}")
+    parts.append(f"pid {pid}")
+    subtitle = "  ".join(parts)
+    return _build_event_panel(f"Job posted on {device}", subtitle=subtitle, icon=">")
 
 
 # ---------------------------------------------------------------------------
@@ -347,37 +426,37 @@ def _status_icon(status: str) -> T.Any:
         grid = Table.grid(padding=(0, 1))
         grid.add_column(no_wrap=True)
         grid.add_column(no_wrap=True)
-        grid.add_row(Text("⏳"), Spinner("dots", style=CLR_WARNING))
+        grid.add_row(Text("*"), Spinner("dots", style=CLR_WARNING))
         return grid
 
     if status == "PENDING":
         grid = Table.grid(padding=(0, 1))
         grid.add_column(no_wrap=True)
         grid.add_column(no_wrap=True)
-        grid.add_row(Text("🕒"), Spinner("dots", style=CLR_ACCENT))
+        grid.add_row(Text("*"), Spinner("dots", style=CLR_ACCENT))
         return grid
 
     if status == "RUNNING":
         grid = Table.grid(padding=(0, 1))
         grid.add_column(no_wrap=True)
         grid.add_column(no_wrap=True)
-        grid.add_row(Text("🚀"), Spinner("line", style="blue"))
+        grid.add_row(Text(">"), Spinner("line", style="blue"))
         return grid
 
     if status == "POSTPROCESSING":
         grid = Table.grid(padding=(0, 1))
         grid.add_column(no_wrap=True)
         grid.add_column(no_wrap=True)
-        grid.add_row(Text("⚙️"), Spinner("bouncingBar", style=CLR_PRIMARY))
+        grid.add_row(Text("~"), Spinner("bouncingBar", style=CLR_PRIMARY))
         return grid
 
     if status == "SUCCESS":
-        return Text("✅")
+        return Text("+")
 
     if status == "ERROR":
-        return Text("❌")
+        return Text("x")
 
-    return Text("ℹ️")
+    return Text("?")
 
 
 # ---------------------------------------------------------------------------
@@ -389,6 +468,7 @@ def build_status_panel(
     etd_seconds: int | float | None,
     *,
     elapsed_timer: ElapsedTimer | None = None,
+    nshots: int | None = None,
 ) -> Panel:
     # Pipeline tracker at the top
     pipeline = _build_pipeline_tracker(status)
@@ -419,18 +499,11 @@ def build_status_panel(
 
     info_grid.add_row(left_cell, mid, right)
 
-    # Timer row
-    timer_row = Table.grid(expand=True)
-    timer_row.add_column(ratio=1, justify="right")
-    if elapsed_timer is not None:
-        timer_row.add_row(elapsed_timer)
-
     border = _BORDER_STYLE.get(status, "dim")
     content = Group(
         pipeline,
         Rule(style=CLR_MUTED),
         info_grid,
-        timer_row,
     )
 
     return Panel(
@@ -470,10 +543,11 @@ def build_final_banner(
     pid: str,
     device: str | None,
     elapsed_seconds: int | float | None,
+    nshots: int | None = None,
 ) -> Panel:
     is_success = status == "SUCCESS"
     color = CLR_SUCCESS if is_success else CLR_ERROR
-    icon = "✅" if is_success else "❌"
+    icon = "+" if is_success else "x"
 
     # Pipeline tracker showing final state
     pipeline = _build_pipeline_tracker(status)
@@ -484,8 +558,12 @@ def build_final_banner(
     meta.add_column(no_wrap=True)
     meta.add_column(no_wrap=True)
     meta.add_column(no_wrap=True)
+    meta.add_column(no_wrap=True)
 
     meta.add_row(
+        Text.from_markup(
+            f"[{CLR_LABEL}]nshots[/] [bold]{nshots if nshots is not None else '-'}[/]"
+        ),
         Text.from_markup(f"[{CLR_LABEL}]pid[/] [bold]{pid}[/]"),
         Text.from_markup(f"[{CLR_LABEL}]device[/] [bold]{device or '-'}[/]"),
         Text.from_markup(
@@ -538,6 +616,7 @@ class UISlots:
 
 __all__ = [
     "ElapsedTimer",
+    "NonBlockingKeyReader",
     "UISlots",
     "LiveOuter",
     "build_circuit_panel",

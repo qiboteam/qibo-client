@@ -486,12 +486,12 @@ class TestQiboJob:
         self.obj._wait_for_response_to_get_request(verbose=True)
 
         expected_logs = [
-            "🚀 Starting qibo client...",
-            "📬 Job posted on None with pid, fakePid",
-            "⏳ Job QUEUEING",
-            "🕒 Job PENDING -> position in queue: 1, max ETD: 0:05:00",
-            "🚀 Job RUNNING",
-            "✅ Job SUCCESS" if status == "success" else "❌ Job ERROR",
+            "> Starting qibo client...",
+            "> Job posted on None with pid, fakePid",
+            "* Job QUEUEING",
+            "* Job PENDING -> position in queue: 1, max ETD: 0:05:00",
+            "> Job RUNNING",
+            "+ Job SUCCESS" if status == "success" else "x Job ERROR",
             "Job COMPLETED",
         ]
         assert caplog.messages == expected_logs

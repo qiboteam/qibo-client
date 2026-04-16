@@ -103,7 +103,7 @@ class Client:
 
         job = self._post_circuit(circuit, device, project, nshots, verbatim)
 
-        job._preamble = build_event_job_posted_panel(device, job.pid)
+        job._preamble = build_event_job_posted_panel(device, job.pid, nshots=job.nshots)
 
         return job
 
