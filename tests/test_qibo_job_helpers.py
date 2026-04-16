@@ -156,3 +156,243 @@ def test_ui_slots_renderable_and_validation():
 
     with pytest.raises(KeyError):
         ui.set("unknown", Text("fail"))
+
+
+def test_ui_slots_empty_renderable():
+    ui = job_frontend.UISlots(order=("header",))
+    result = ui.renderable()
+    assert isinstance(result, Text)
+    assert result.plain == ""
+
+
+def test_non_blocking_key_reader_non_tty(monkeypatch):
+    """NonBlockingKeyReader degrades gracefully when stdin is not a TTY."""
+    import io
+
+    monkeypatch.setattr("sys.stdin", io.StringIO(""))
+    with job_frontend.NonBlockingKeyReader() as reader:
+        assert not reader.active
+        assert reader.get_key() is None
+
+
+def test_capture_circuit_drawing_none():
+    assert job_frontend._capture_circuit_drawing(None) is None
+
+
+def test_capture_circuit_drawing_valid():
+    import qibo
+
+    circ = qibo.Circuit(2)
+    circ.add(qibo.gates.H(0))
+    circ.add(qibo.gates.CNOT(0, 1))
+    result = job_frontend._capture_circuit_drawing(circ.raw)
+    assert result is not None
+    assert isinstance(result, str)
+
+
+def test_capture_circuit_drawing_invalid():
+    assert job_frontend._capture_circuit_drawing({"invalid": True}) is None
+
+
+def test_circuit_summary_none():
+    assert job_frontend._circuit_summary(None) is None
+
+
+def test_circuit_summary_valid():
+    import qibo
+
+    circ = qibo.Circuit(2)
+    circ.add(qibo.gates.H(0))
+    circ.add(qibo.gates.CNOT(0, 1))
+    result = job_frontend._circuit_summary(circ.raw)
+    assert result is not None
+    assert result["nqubits"] == 2
+    assert result["ngates"] == 2
+    assert "h" in result["gate_names"]
+    assert "cx" in result["gate_names"]
+
+
+def test_circuit_summary_invalid():
+    assert job_frontend._circuit_summary({"invalid": True}) is None
+
+
+def test_build_pipeline_tracker_error_mode():
+    renderable = job_frontend._build_pipeline_tracker("ERROR")
+    text = render_to_text(renderable)
+    assert "ERROR" in text
+
+
+def test_build_pipeline_tracker_normal_stages():
+    for stage in job_frontend.STAGES:
+        renderable = job_frontend._build_pipeline_tracker(stage)
+        text = render_to_text(renderable)
+        assert stage in text
+
+
+def test_status_icon_all_variants():
+    for status in (
+        "QUEUEING",
+        "PENDING",
+        "RUNNING",
+        "POSTPROCESSING",
+        "SUCCESS",
+        "ERROR",
+    ):
+        icon = job_frontend._status_icon(status)
+        assert icon is not None
+
+    unknown = job_frontend._status_icon("UNKNOWN")
+    assert isinstance(unknown, Text)
+    assert unknown.plain == "?"
+
+
+def test_build_circuit_panel_with_valid_circuit():
+    import qibo
+
+    circ = qibo.Circuit(2)
+    circ.add(qibo.gates.H(0))
+    circ.add(qibo.gates.CNOT(0, 1))
+    panel = job_frontend.build_circuit_panel(circ.raw)
+    assert panel is not None
+    text = render_to_text(panel)
+    assert "Circuit" in text
+
+
+def test_build_circuit_panel_none():
+    assert job_frontend.build_circuit_panel(None) is None
+
+
+def test_outer_container_with_elapsed_and_keybind():
+    import time
+
+    timer = job_frontend.ElapsedTimer(start_time=time.perf_counter())
+    container = job_frontend._outer_container(
+        "Title", Text("body"), elapsed_timer=timer, keybind_hint="[dim]press c[/]"
+    )
+    text = render_to_text(container)
+    assert "Title" in text
+    assert "body" in text
+
+
+def test_live_outer_rich_measure():
+    from rich.measure import Measurement
+
+    slots = job_frontend.UISlots(order=("status",))
+    slots.set("status", Text("Hello"))
+    outer = job_frontend.LiveOuter("Test", slots)
+    console = Console(width=80)
+    opts = console.options
+    m = outer.__rich_measure__(console, opts)
+    assert isinstance(m, Measurement)
+
+
+def test_elapsed_timer_renders():
+    import time
+
+    timer = job_frontend.ElapsedTimer(start_time=time.perf_counter())
+    console = Console(width=80, record=True)
+    console.print(timer)
+    text = console.export_text()
+    assert "elapsed" in text
+
+
+def test_pending_panel_with_info():
+    panel = job_frontend._pending_panel(3, 120)
+    text = render_to_text(panel)
+    assert "3" in text
+    assert "0:02:00" in text
+
+
+def test_log_status_non_tty_not_verbose():
+    last, printed = job_frontend.log_status_non_tty(
+        verbose=False,
+        last_status=None,
+        printed_pending_with_info=False,
+        job_status="RUNNING",
+        qpos=None,
+        etd=None,
+    )
+    assert last is None
+    assert printed is False
+
+
+def test_log_status_non_tty_queueing(caplog):
+    caplog.set_level(logging.INFO, logger="qibo_client.config_logging")
+    last, printed = job_frontend.log_status_non_tty(
+        verbose=True,
+        last_status=None,
+        printed_pending_with_info=False,
+        job_status="QUEUEING",
+        qpos=None,
+        etd=None,
+    )
+    assert last == "QUEUEING"
+    assert "* Job QUEUEING" in caplog.messages
+
+
+def test_log_status_non_tty_running(caplog):
+    caplog.set_level(logging.INFO, logger="qibo_client.config_logging")
+    last, printed = job_frontend.log_status_non_tty(
+        verbose=True,
+        last_status=None,
+        printed_pending_with_info=False,
+        job_status="RUNNING",
+        qpos=None,
+        etd=None,
+    )
+    assert last == "RUNNING"
+    assert "> Job RUNNING" in caplog.messages
+
+
+def test_log_status_non_tty_error(caplog):
+    caplog.set_level(logging.INFO, logger="qibo_client.config_logging")
+    last, printed = job_frontend.log_status_non_tty(
+        verbose=True,
+        last_status=None,
+        printed_pending_with_info=False,
+        job_status="ERROR",
+        qpos=None,
+        etd=None,
+    )
+    assert last == "ERROR"
+    assert "x Job ERROR" in caplog.messages
+
+
+def test_log_status_non_tty_pending_with_initial_info(caplog):
+    caplog.set_level(logging.INFO, logger="qibo_client.config_logging")
+    last, printed = job_frontend.log_status_non_tty(
+        verbose=True,
+        last_status=None,
+        printed_pending_with_info=False,
+        job_status="PENDING",
+        qpos=5,
+        etd=60,
+    )
+    assert last == "PENDING"
+    assert printed is True
+    assert "position in queue: 5" in caplog.messages[-1]
+
+
+def test_build_event_job_posted_panel_with_nshots():
+    panel = job_frontend.build_event_job_posted_panel("dev-a", "pid-1", nshots=100)
+    text = render_to_text(panel)
+    assert "nshots 100" in text
+    assert "pid pid-1" in text
+
+
+def test_final_banner_error():
+    panel = job_frontend.build_final_banner(
+        "ERROR", pid="pid-err", device="qpu-x", elapsed_seconds=45
+    )
+    text = render_to_text(panel)
+    assert "ERROR" in text
+    assert "pid pid-err" in text
+    assert panel.border_style == "red"
+
+
+def test_final_banner_no_device_no_nshots():
+    panel = job_frontend.build_final_banner(
+        "SUCCESS", pid="pid-1", device=None, elapsed_seconds=None, nshots=None
+    )
+    text = render_to_text(panel)
+    assert "pid pid-1" in text

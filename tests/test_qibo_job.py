@@ -504,3 +504,36 @@ class TestQiboJob:
 
         response = self.obj.delete()
         assert response.json() == response_json
+
+
+def test_extract_archive_to_folder_fallback(monkeypatch, tmp_path):
+    """Test _extract_archive_to_folder falls back when filter param is not supported."""
+    import io
+    import tarfile
+
+    # Create a valid tar.gz archive
+    archive_path = tmp_path / "test.tar.gz"
+    with tarfile.open(archive_path, "w:gz") as tar:
+        data = b"hello world"
+        info = tarfile.TarInfo(name="test.txt")
+        info.size = len(data)
+        tar.addfile(info, io.BytesIO(data))
+
+    dest = tmp_path / "output"
+    dest.mkdir()
+
+    # Monkey-patch extractall to simulate Python < 3.12 (no filter support)
+    original_extractall = tarfile.TarFile.extractall
+    call_count = [0]
+
+    def fake_extractall(self, path=".", members=None, **kwargs):
+        call_count[0] += 1
+        if "filter" in kwargs:
+            raise TypeError("extractall() got unexpected keyword argument 'filter'")
+        return original_extractall(self, path, members=members)
+
+    monkeypatch.setattr(tarfile.TarFile, "extractall", fake_extractall)
+
+    qibo_job._extract_archive_to_folder(archive_path, dest)
+    assert (dest / "test.txt").exists()
+    assert call_count[0] == 2  # first call raises, second succeeds

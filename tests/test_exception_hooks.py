@@ -191,3 +191,64 @@ def test_qibo_error_hooks_context_manager_installs_temporarily(hooks):
         assert sys.excepthook is hooks._qibo_sys_excepthook
 
     assert sys.excepthook is original_sys_hook
+
+
+def test_get_ipython_shell_not_in_modules(monkeypatch, hooks):
+    monkeypatch.delitem(sys.modules, "IPython", raising=False)
+    assert hooks._get_ipython_shell() is None
+
+
+def test_get_ipython_shell_import_error(monkeypatch, hooks):
+    monkeypatch.setitem(sys.modules, "IPython", types.ModuleType("IPython"))
+    monkeypatch.setattr(
+        hooks.importlib,
+        "import_module",
+        lambda name: (_ for _ in ()).throw(ImportError("no")),
+    )
+    assert hooks._get_ipython_shell() is None
+
+
+def test_get_ipython_shell_get_ipython_raises(monkeypatch, hooks):
+    def bad_get_ipython():
+        raise RuntimeError("boom")
+
+    fake_module = types.SimpleNamespace(get_ipython=bad_get_ipython)
+    monkeypatch.setitem(sys.modules, "IPython", fake_module)
+    monkeypatch.setattr(hooks.importlib, "import_module", lambda name: fake_module)
+    assert hooks._get_ipython_shell() is None
+
+
+def test_qibo_sys_excepthook_falls_back_to_sys_excepthook(hooks, monkeypatch):
+    hooks._prev_sys_excepthook = None
+    calls = []
+    monkeypatch.setattr(sys, "__excepthook__", lambda *a: calls.append(a))
+    err = ValueError("test")
+    hooks._qibo_sys_excepthook(ValueError, err, None)
+    assert len(calls) == 1
+
+
+def test_qibo_threading_excepthook_falls_back_to_threading(hooks, monkeypatch):
+    hooks._prev_threading_excepthook = None
+    calls = []
+    monkeypatch.setattr(threading, "__excepthook__", lambda a: calls.append(a))
+    args = types.SimpleNamespace(exc_value=ValueError("nope"))
+    hooks._qibo_threading_excepthook(args)
+    assert len(calls) == 1
+
+
+def test_uninstall_asyncio_handler_handles_exception(hooks):
+    class BadLoop:
+        def set_exception_handler(self, handler):
+            raise RuntimeError("loop closed")
+
+        def __hash__(self):
+            return id(self)
+
+        def __eq__(self, other):
+            return self is other
+
+    loop = BadLoop()
+    hooks._prev_asyncio_handlers[loop] = None
+    # Should not raise
+    hooks._uninstall_asyncio_handler_all_known_loops()
+    assert loop not in hooks._prev_asyncio_handlers
