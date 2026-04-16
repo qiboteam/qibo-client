@@ -135,8 +135,10 @@ def test_build_event_panel_and_job_posted_panel():
 
 
 def test_outer_container_and_outer_render_title():
-    panel = job_frontend._outer_container("Outer Title", Text("content"))
-    assert panel.title == "[bold magenta]Outer Title[/]"
+    container = job_frontend._outer_container("Outer Title", Text("content"))
+    text = render_to_text(container)
+    assert "Outer Title" in text
+    assert "content" in text
 
     slots = job_frontend.UISlots(order=("status",))
     slots.set("status", Text("Hello"))

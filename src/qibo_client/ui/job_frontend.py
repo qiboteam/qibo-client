@@ -234,19 +234,13 @@ class ElapsedTimer:
 # ---------------------------------------------------------------------------
 # Outer container
 # ---------------------------------------------------------------------------
-def _outer_container(title: str, inner: RenderableType) -> Panel:
+def _outer_container(title: str, inner: RenderableType) -> RenderableType:
     grid = Table.grid(expand=True)
     grid.add_column(ratio=1)
+    grid.add_row(Rule(title=f"[{CLR_PRIMARY_BOLD}]{title}[/]", style=CLR_PRIMARY))
     grid.add_row(inner)
-
-    return Panel(
-        grid,
-        title=f"[{CLR_PRIMARY_BOLD}]{title}[/]",
-        border_style=CLR_PRIMARY,
-        box=box.ROUNDED,
-        padding=(1, 2),
-        expand=True,
-    )
+    grid.add_row(Rule(style=CLR_PRIMARY))
+    return grid
 
 
 class LiveOuter:
@@ -261,9 +255,9 @@ class LiveOuter:
         yield _outer_container(self.title, inner)
 
     def __rich_measure__(self, console: Console, options):
-        inner = self.ui.renderable()
-        panel = _outer_container(self.title, inner)
-        return panel.__rich_measure__(console, options)
+        from rich.measure import Measurement
+
+        return Measurement(options.min_width, options.max_width)
 
 
 # ---------------------------------------------------------------------------
