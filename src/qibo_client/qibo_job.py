@@ -86,6 +86,7 @@ class QiboJob:
         circuit: T.Optional[qibo.Circuit] = None,
         nshots: T.Optional[int] = None,
         device: T.Optional[str] = None,
+        project: T.Optional[str] = None,
     ):
         self.base_url = base_url
         self.headers = headers
@@ -93,6 +94,7 @@ class QiboJob:
         self.circuit = circuit
         self.nshots = nshots
         self.device = device
+        self.project = project
 
         self._status: T.Optional[QiboJobStatus] = None
         # convenience fields (populated on refresh/status)
@@ -214,7 +216,12 @@ class QiboJob:
             if status == QiboJobStatus.POSTPROCESSING:
                 return None
             return build_status_panel(
-                status.name, qpos, etd, elapsed_timer=timer, nshots=self.nshots
+                status.name,
+                qpos,
+                etd,
+                pid=self.pid,
+                device=self.device,
+                project=self.project,
             )
 
         # Small wrapper to fetch status + live fields
@@ -247,7 +254,7 @@ class QiboJob:
 
             # Compose a single renderable from named slots.
             ui = UISlots(order=("header", "circuit", "status", "footer"))
-            title = f"Qibo client version {version}"
+            title = f"qibo-client v{version}"
             ui.set("header", self._preamble)
             ui.set(
                 "status",
@@ -255,8 +262,8 @@ class QiboJob:
                     status0.name,
                     qpos0,
                     etd0,
-                    elapsed_timer=elapsed_timer,
-                    nshots=self.nshots,
+                    pid=self.pid,
+                    device=self.device,
                 ),
             )
 
@@ -264,7 +271,7 @@ class QiboJob:
             circuit_visible = show_circuit
             circuit_panel = None
             if self.circuit is not None:
-                circuit_panel = build_circuit_panel(self.circuit)
+                circuit_panel = build_circuit_panel(self.circuit, self.nshots)
             if circuit_visible and circuit_panel is not None:
                 ui.set("circuit", circuit_panel)
 
@@ -272,7 +279,7 @@ class QiboJob:
 
             with NonBlockingKeyReader() as keys:
                 keybind_hint = (
-                    "[dim]press [bold]c[/bold] to toggle circuit[/]"
+                    "[dim]press c to toggle circuit summary[/]"
                     if has_circuit and keys.active
                     else None
                 )
@@ -324,8 +331,7 @@ class QiboJob:
                                     job_status.name,
                                     pid=self.pid,
                                     device=self.device,
-                                    elapsed_seconds=elapsed,
-                                    nshots=self.nshots,
+                                    project=self.project,
                                 ),
                             )
                             live.refresh()

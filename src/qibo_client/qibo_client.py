@@ -12,7 +12,6 @@ from .config_logging import logger
 from .exceptions import JobPostServerError
 from .qibo_job import QiboJob
 from .ui import client_ui as ui
-from .ui.job_frontend import build_event_job_posted_panel
 from .utils import QiboApiRequest
 
 version = im.version(__package__)
@@ -101,13 +100,7 @@ class Client:
         """
         self.check_client_server_qibo_versions()
 
-        job = self._post_circuit(circuit, device, project, nshots, verbatim)
-
-        job._preamble = build_event_job_posted_panel(
-            device, job.pid, nshots=job.nshots, project=project
-        )
-
-        return job
+        return self._post_circuit(circuit, device, project, nshots, verbatim)
 
     def _post_circuit(
         self,
@@ -147,6 +140,7 @@ class Client:
             circuit=circuit.raw,
             nshots=nshots,
             device=device,
+            project=project,
         )
 
     def print_quota_info(self):

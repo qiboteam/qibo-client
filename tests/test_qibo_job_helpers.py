@@ -104,6 +104,21 @@ def test_status_panel_success_has_green_border():
     assert panel.border_style == "green"
 
 
+def test_status_panel_shows_metadata_row():
+    panel = job_frontend.build_status_panel(
+        "RUNNING",
+        queue_position=None,
+        etd_seconds=None,
+        nshots=150,
+        pid="abc123",
+        device="tii-sim",
+    )
+    text = render_to_text(panel)
+    assert "nshots 150" in text
+    assert "pid abc123" in text
+    assert "device tii-sim" in text
+
+
 def test_pending_panel_waits_for_info():
     panel = job_frontend._pending_panel(None, None)
     text = render_to_text(panel)

@@ -53,10 +53,10 @@ _STAGE_ICONS: dict[str, str] = {
 }
 
 _STAGE_STYLE: dict[str, str] = {
-    "QUEUEING": CLR_WARNING,
+    "QUEUEING": f"bold {CLR_WARNING}",
     "PENDING": f"bold {CLR_ACCENT}",
-    "RUNNING": CLR_RUNNING,
-    "POSTPROCESSING": CLR_POSTPROC,
+    "RUNNING": f"bold {CLR_RUNNING}",
+    "POSTPROCESSING": f"bold {CLR_POSTPROC}",
     "SUCCESS": f"bold {CLR_SUCCESS}",
     "ERROR": f"bold {CLR_ERROR}",
 }
@@ -211,46 +211,6 @@ def log_status_non_tty(
 
 
 # ---------------------------------------------------------------------------
-# Pipeline progress tracker
-# ---------------------------------------------------------------------------
-def _build_pipeline_tracker(current_status: str) -> RenderableType:
-    """Horizontal stage pipeline: ✓QUEUE → ●PENDING → ○RUNNING → ..."""
-    if current_status == "ERROR":
-        error_mode = True
-        active_idx = -1
-    else:
-        error_mode = False
-        active_idx = STAGES.index(current_status) if current_status in STAGES else -1
-
-    row = Text()
-    for i, stage in enumerate(STAGES):
-        icon = _STAGE_ICONS.get(stage, "")
-        if error_mode:
-            row.append(f" {icon} {stage} ", style=CLR_MUTED)
-        elif i < active_idx:
-            row.append(f" ✓ {stage} ", style=CLR_SUCCESS)
-        elif i == active_idx:
-            style = _STAGE_STYLE.get(stage, "bold")
-            row.append(f" {icon} {stage} ", style=style)
-        else:
-            row.append(f" ○ {stage} ", style=CLR_MUTED)
-
-        if i < len(STAGES) - 1:
-            if error_mode:
-                row.append(" → ", style=CLR_MUTED)
-            elif i < active_idx:
-                row.append(" → ", style=CLR_SUCCESS)
-            else:
-                row.append(" → ", style=CLR_MUTED)
-
-    if error_mode:
-        row.append(" → ", style=CLR_MUTED)
-        row.append(f" {_STAGE_ICONS['ERROR']} ERROR ", style=f"bold {CLR_ERROR}")
-
-    return Align.center(row)
-
-
-# ---------------------------------------------------------------------------
 # Elapsed timer renderable
 # ---------------------------------------------------------------------------
 class ElapsedTimer:
@@ -292,11 +252,11 @@ def _outer_container(
         parts = Text()
         if elapsed_timer is not None:
             elapsed = time.perf_counter() - elapsed_timer.start_time
-            parts.append("elapsed ", style="dim")
+            parts.append("elapsed time ", style="dim")
             parts.append(format_hms(elapsed), style="bold")
         if keybind_hint is not None:
             if len(parts):
-                parts.append("  ")
+                parts.append(" - ", style="dim")
             parts.append_text(Text.from_markup(keybind_hint))
         bottom_title = parts
     grid.add_row(Rule(title=bottom_title, style="default"))
@@ -355,24 +315,10 @@ def _build_event_panel(
     )
 
 
-def build_event_job_posted_panel(
-    device: str,
-    pid: str,
-    nshots: int | None = None,
-    project: str | None = None,
-) -> Panel:
-    title = f"Job posted on {device}"
-    if project is not None:
-        title += f" - project {project}"
-    if nshots is not None:
-        title += f" - nshots {nshots}"
-    return _build_event_panel(title, subtitle=f"pid {pid}", icon=">")
-
-
 # ---------------------------------------------------------------------------
 # Circuit panel
 # ---------------------------------------------------------------------------
-def build_circuit_panel(circuit_dict: dict | None) -> Panel | None:
+def build_circuit_panel(circuit_dict: dict | None, nshots: int | None) -> Panel | None:
     """Build a panel showing the circuit diagram and summary stats."""
     drawing = _capture_circuit_drawing(circuit_dict)
     summary = _circuit_summary(circuit_dict)
@@ -382,42 +328,35 @@ def build_circuit_panel(circuit_dict: dict | None) -> Panel | None:
     parts: list[RenderableType] = []
 
     if drawing is not None:
-        parts.append(
-            Panel(
-                Text(drawing),
-                title=f"[bold {CLR_ACCENT}]Circuit Diagram[/]",
-                border_style=CLR_MUTED,
-                box=box.ROUNDED,
-                expand=True,
-                padding=(0, 1),
-            )
-        )
+        parts.append(drawing)
 
     if summary is not None:
         stats = Table.grid(padding=(0, 2), expand=False)
         stats.add_column(style=CLR_LABEL, no_wrap=True)
         stats.add_column(style="bold", no_wrap=True)
-        stats.add_row("Qubits", str(summary["nqubits"]))
-        stats.add_row("Depth", str(summary["depth"]))
-        stats.add_row("Gates", str(summary["ngates"]))
+        stats.add_row("qubits", str(summary["nqubits"]))
+        stats.add_row("nshots", str(nshots))
+        stats.add_row("depth", str(summary["depth"]))
+        stats.add_row("gates", str(summary["ngates"]))
 
         # Gate breakdown
         gate_parts = []
         for gate, count in sorted(summary["gate_names"].items(), key=lambda x: -x[1]):
             gate_parts.append(f"[{CLR_ACCENT}]{gate}[/]:[bold]{count}[/]")
         if gate_parts:
-            stats.add_row("Breakdown", Text.from_markup("  ".join(gate_parts)))
+            stats.add_row("breakdown", Text.from_markup("  ".join(gate_parts)))
 
         parts.append(stats)
 
     content = Group(*parts) if len(parts) > 1 else parts[0]
     return Panel(
         content,
-        title=f"[{CLR_PRIMARY_BOLD}]Circuit[/]",
+        title=f"[{CLR_PRIMARY_BOLD}]circuit summary[/]",
         border_style=CLR_PRIMARY,
         box=box.ROUNDED,
         expand=True,
         padding=(0, 1),
+        title_align="left",
     )
 
 
@@ -463,6 +402,29 @@ def _status_icon(status: str) -> T.Any:
 
 
 # ---------------------------------------------------------------------------
+# Shared metadata row
+# ---------------------------------------------------------------------------
+def _build_meta_row(
+    *,
+    pid: str | None = None,
+    device: str | None = None,
+    project: str | None = None,
+) -> Table:
+    """Build a compact metadata row:  pid  device  project."""
+    meta = Table.grid(padding=(0, 2))
+    meta.add_column(no_wrap=True)
+    meta.add_column(no_wrap=True)
+    meta.add_column(no_wrap=True)
+
+    meta.add_row(
+        Text.from_markup(f"[{CLR_LABEL}]job-pid[/] [bold]{pid or '-'}[/]"),
+        Text.from_markup(f"[{CLR_LABEL}]device[/] [bold]{device or '-'}[/]"),
+        Text.from_markup(f"[{CLR_LABEL}]project[/] [bold]{project or '-'}[/]"),
+    )
+    return meta
+
+
+# ---------------------------------------------------------------------------
 # Status panel (main live panel)
 # ---------------------------------------------------------------------------
 def build_status_panel(
@@ -470,15 +432,22 @@ def build_status_panel(
     queue_position: int | None,
     etd_seconds: int | float | None,
     *,
-    elapsed_timer: ElapsedTimer | None = None,
-    nshots: int | None = None,
+    pid: str | None = None,
+    device: str | None = None,
+    project: str | None = None,
 ) -> Panel:
-    # Pipeline tracker at the top
-    pipeline = _build_pipeline_tracker(status)
 
     # Status row: icon + label
     status_text = Text(status, style=_STAGE_STYLE.get(status, "bold"))
     icon = _status_icon(status)
+
+    border = _BORDER_STYLE.get(status, "dim")
+
+    meta = _build_meta_row(
+        pid=pid,
+        device=device,
+        project=project,
+    )
 
     left_cell = Table.grid(padding=(0, 1))
     left_cell.add_column(no_wrap=True)
@@ -502,9 +471,8 @@ def build_status_panel(
 
     info_grid.add_row(left_cell, mid, right)
 
-    border = _BORDER_STYLE.get(status, "dim")
     content = Group(
-        pipeline,
+        meta,
         Rule(style=CLR_MUTED),
         info_grid,
     )
@@ -514,7 +482,8 @@ def build_status_panel(
         box=box.ROUNDED,
         border_style=border,
         expand=True,
-        title=f"[bold {border}]Status[/]",
+        subtitle="job status",
+        subtitle_align="right",
     )
 
 
@@ -545,43 +514,35 @@ def build_final_banner(
     *,
     pid: str,
     device: str | None,
-    elapsed_seconds: int | float | None,
-    nshots: int | None = None,
+    project: str | None,
 ) -> Panel:
     is_success = status == "SUCCESS"
     color = CLR_SUCCESS if is_success else CLR_ERROR
     icon = "+" if is_success else "x"
 
-    # Pipeline tracker showing final state
-    pipeline = _build_pipeline_tracker(status)
+    meta = _build_meta_row(
+        pid=pid,
+        device=device,
+        project=project,
+    )
 
-    headline = Text.assemble(f"{icon} ", ("JOB ", "bold"), (status, f"bold {color}"))
-
-    meta = Table.grid(padding=(0, 2))
-    meta.add_column(no_wrap=True)
-    meta.add_column(no_wrap=True)
-    meta.add_column(no_wrap=True)
-    meta.add_column(no_wrap=True)
-
-    meta.add_row(
-        Text.from_markup(
-            f"[{CLR_LABEL}]nshots[/] [bold]{nshots if nshots is not None else '-'}[/]"
-        ),
-        Text.from_markup(f"[{CLR_LABEL}]pid[/] [bold]{pid}[/]"),
-        Text.from_markup(f"[{CLR_LABEL}]device[/] [bold]{device or '-'}[/]"),
-        Text.from_markup(
-            f"[{CLR_LABEL}]elapsed[/] [{CLR_TIMER}]{format_hms(elapsed_seconds)}[/]"
-        ),
+    headline = Text.assemble(
+        f"{icon} ", ("job completed with ", "bold"), (status, f"bold {color}")
     )
 
     content = Group(
-        pipeline,
-        Rule(style=color),
-        Align.left(headline),
-        Rule(style=color),
         meta,
+        Rule(style=color),
+        headline,
     )
-    return Panel(content, border_style=color, box=box.ROUNDED, expand=True)
+    return Panel(
+        content,
+        border_style=color,
+        box=box.ROUNDED,
+        subtitle="job status",
+        subtitle_align="right",
+        expand=True,
+    )
 
 
 # ---------------------------------------------------------------------------
@@ -623,7 +584,6 @@ __all__ = [
     "UISlots",
     "LiveOuter",
     "build_circuit_panel",
-    "build_event_job_posted_panel",
     "build_final_banner",
     "build_status_panel",
     "format_hms",
