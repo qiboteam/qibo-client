@@ -224,28 +224,25 @@ class ElapsedTimer:
 # ---------------------------------------------------------------------------
 def _outer_container(
     title: str,
+    version: str,
     inner: RenderableType,
     *,
     elapsed_timer: ElapsedTimer | None = None,
-    keybind_hint: str | None = None,
 ) -> RenderableType:
-    grid = Table.grid(expand=True)
+    grid = Table.grid(expand=False)
     grid.add_column(ratio=1)
     grid.add_row(Rule(title=Text(title, style="bold"), style="default"))
     grid.add_row(inner)
 
     # Build bottom rule parts
     bottom_title = None
-    if elapsed_timer is not None or keybind_hint is not None:
+    if elapsed_timer is not None:
         parts = Text()
         if elapsed_timer is not None:
             elapsed = time.perf_counter() - elapsed_timer.start_time
-            parts.append("elapsed time ", style="dim")
+            parts.append("elapsed ", style="dim")
             parts.append(format_hms(elapsed), style="bold")
-        if keybind_hint is not None:
-            if len(parts):
-                parts.append(" - ", style="dim")
-            parts.append_text(Text.from_markup(keybind_hint))
+            parts.append(f" - qibo-client {version} ", style="dim")
         bottom_title = parts
     grid.add_row(Rule(title=bottom_title, style="default"))
     return grid
@@ -257,23 +254,23 @@ class LiveOuter:
     def __init__(
         self,
         title: str,
+        version: str,
         ui: UISlots,
         *,
         elapsed_timer: ElapsedTimer | None = None,
-        keybind_hint: str | None = None,
     ):
         self.title = title
+        self.version = version
         self.ui = ui
         self.elapsed_timer = elapsed_timer
-        self.keybind_hint = keybind_hint
 
     def __rich_console__(self, console: Console, options):
         inner = self.ui.renderable()
         yield _outer_container(
             self.title,
+            self.version,
             inner,
             elapsed_timer=self.elapsed_timer,
-            keybind_hint=self.keybind_hint,
         )
 
     def __rich_measure__(self, console: Console, options):
@@ -321,7 +318,7 @@ def build_circuit_panel(circuit_dict: dict | None, nshots: int | None) -> Panel 
         title=f"[{CLR_PRIMARY_BOLD}]circuit summary[/]",
         border_style=CLR_PRIMARY,
         box=box.ROUNDED,
-        expand=True,
+        expand=False,
         padding=(0, 1),
         title_align="left",
     )
@@ -449,8 +446,6 @@ def build_status_panel(
         box=box.ROUNDED,
         border_style=border,
         expand=True,
-        subtitle="job status",
-        subtitle_align="right",
     )
 
 
@@ -487,7 +482,7 @@ def build_final_banner(
         content,
         border_style=color,
         box=box.ROUNDED,
-        subtitle="job status",
+        subtitle="",
         subtitle_align="right",
         expand=True,
     )

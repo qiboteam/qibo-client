@@ -15,9 +15,7 @@ from .config_logging import logger
 from .ui.job_frontend import (
     ElapsedTimer,
     LiveOuter,
-    NonBlockingKeyReader,
     UISlots,
-    build_circuit_panel,
     build_final_banner,
     build_status_panel,
     log_status_non_tty,
@@ -176,66 +174,51 @@ class QiboJob:
 
     def _wait_live(self, interval: float, show_circuit: bool):
         elapsed_timer = ElapsedTimer()
-        ui = UISlots(order=("header", "circuit", "status", "footer"))
+        ui = UISlots(order=("header", "status", "footer"))
 
-        circuit_panel = build_circuit_panel(self.circuit, self.nshots)
-        circuit_visible = show_circuit and circuit_panel is not None
-        if circuit_visible:
-            ui.set("circuit", circuit_panel)
+        outer = LiveOuter(
+            f"job status @ {self.base_url}",
+            version,
+            ui,
+            elapsed_timer=elapsed_timer,
+        )
 
-        with NonBlockingKeyReader() as keys:
-            hint = (
-                "[dim]press c to toggle circuit summary[/]"
-                if circuit_panel and keys.active
-                else None
-            )
-            outer = LiveOuter(
-                f"qibo-client v{version}",
-                ui,
-                elapsed_timer=elapsed_timer,
-                keybind_hint=hint,
-            )
+        with Live(outer, console=console, vertical_overflow="visible") as live:
+            while True:
+                status = self.refresh()
+                if status != QiboJobStatus.POSTPROCESSING:
+                    ui.set(
+                        "status",
+                        build_status_panel(
+                            status.name,
+                            self.queue_position,
+                            self.seconds_to_job_start,
+                            pid=self.pid,
+                            device=self.device,
+                            project=self.project,
+                        ),
+                    )
 
-            with Live(outer, console=console, vertical_overflow="visible") as live:
-                while True:
-                    if circuit_panel and keys.active and keys.get_key() == "c":
-                        circuit_visible = not circuit_visible
-                        ui.set("circuit", circuit_panel if circuit_visible else None)
-
-                    status = self.refresh()
-                    if status != QiboJobStatus.POSTPROCESSING:
-                        ui.set(
-                            "status",
-                            build_status_panel(
-                                status.name,
-                                self.queue_position,
-                                self.seconds_to_job_start,
-                                pid=self.pid,
-                                device=self.device,
-                                project=self.project,
-                            ),
-                        )
-
-                    if status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                        resp = QiboApiRequest.get(
-                            self.base_url + f"/api/jobs/{self.pid}/download/",
-                            headers=self.headers,
-                            timeout=constants.TIMEOUT,
-                        )
-                        ui.set(
-                            "status",
-                            build_final_banner(
-                                status.name,
-                                pid=self.pid,
-                                device=self.device,
-                                project=self.project,
-                            ),
-                        )
-                        live.refresh()
-                        return resp, status
-
+                if status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
+                    resp = QiboApiRequest.get(
+                        self.base_url + f"/api/jobs/{self.pid}/download/",
+                        headers=self.headers,
+                        timeout=constants.TIMEOUT,
+                    )
+                    ui.set(
+                        "status",
+                        build_final_banner(
+                            status.name,
+                            pid=self.pid,
+                            device=self.device,
+                            project=self.project,
+                        ),
+                    )
                     live.refresh()
-                    time.sleep(interval)
+                    return resp, status
+
+                live.refresh()
+                time.sleep(interval)
 
     def _wait_non_live(self, interval: float, verbose: bool):
         last_status, printed_pending = None, False
