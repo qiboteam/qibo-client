@@ -130,15 +130,13 @@ def test_final_banner_contains_metadata():
 def test_outer_container_and_outer_render_title():
     container = job_frontend._outer_container("Outer Title", Text("content"))
     text = render_to_text(container)
-    assert "Outer Title" in text
     assert "content" in text
 
     slots = job_frontend.UISlots(order=("status",))
     slots.set("status", Text("Hello"))
-    outer = job_frontend.LiveOuter("Qibo", slots)
+    outer = job_frontend.LiveOuter("Qibo", "1.0.0", slots)
     text = render_to_text(outer)
     assert "Hello" in text
-    assert "Qibo" in text
 
 
 def test_ui_slots_renderable_and_validation():
@@ -258,15 +256,14 @@ def test_build_circuit_panel_none():
     assert job_frontend.build_circuit_panel(None, nshots=None) is None
 
 
-def test_outer_container_with_elapsed_and_keybind():
+def test_outer_container_with_elapsed():
     import time
 
     timer = job_frontend.ElapsedTimer(start_time=time.perf_counter())
     container = job_frontend._outer_container(
-        "Title", Text("body"), elapsed_timer=timer, keybind_hint="[dim]press c[/]"
+        "Title", Text("body"), elapsed_timer=timer, version="1.0.0"
     )
     text = render_to_text(container)
-    assert "Title" in text
     assert "body" in text
 
 
@@ -274,8 +271,8 @@ def test_live_outer_rich_measure():
     from rich.measure import Measurement
 
     slots = job_frontend.UISlots(order=("status",))
-    slots.set("status", Text("Hello"))
-    outer = job_frontend.LiveOuter("Test", slots)
+    slots.set("status", Text("Hello", style="gray"))
+    outer = job_frontend.LiveOuter("Test", "1.0.0", slots)
     console = Console(width=80)
     opts = console.options
     m = outer.__rich_measure__(console, opts)

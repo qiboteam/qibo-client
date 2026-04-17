@@ -124,12 +124,10 @@ class QiboJob:
         return self.status() is QiboJobStatus.SUCCESS
 
     def result(
-        self, wait: float = 0.5, verbose: bool = True, show_circuit: bool = False
+        self, wait: float = 0.5, verbose: bool = True
     ) -> T.Optional[qibo.result.QuantumState]:
         """Poll server until completion, then download and return result."""
-        response, job_status = self._wait_for_response_to_get_request(
-            wait, verbose, show_circuit=show_circuit
-        )
+        response, job_status = self._wait_for_response_to_get_request(wait, verbose)
 
         self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
         self.results_folder.mkdir(parents=True, exist_ok=True)
@@ -155,8 +153,6 @@ class QiboJob:
         self,
         seconds_between_checks: T.Optional[float] = None,
         verbose: bool = True,
-        *,
-        show_circuit: bool = False,
     ) -> T.Tuple[requests.Response, QiboJobStatus]:
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
@@ -168,11 +164,11 @@ class QiboJob:
             logger.info("Please wait until your job is completed...")
 
         if use_live:
-            return self._wait_live(seconds_between_checks, show_circuit)
+            return self._wait_live(seconds_between_checks)
 
         return self._wait_non_live(seconds_between_checks, verbose)
 
-    def _wait_live(self, interval: float, show_circuit: bool):
+    def _wait_live(self, interval: float):
         elapsed_timer = ElapsedTimer()
         ui = UISlots(order=("header", "status", "footer"))
 

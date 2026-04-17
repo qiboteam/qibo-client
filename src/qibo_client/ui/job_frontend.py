@@ -224,10 +224,11 @@ class ElapsedTimer:
 # ---------------------------------------------------------------------------
 def _outer_container(
     title: str,
-    version: str,
     inner: RenderableType,
     *,
     elapsed_timer: ElapsedTimer | None = None,
+    keybind_hint: str | None = None,
+    version: str | None = None,
 ) -> RenderableType:
     grid = Table.grid(expand=False)
     grid.add_column(ratio=1)
@@ -242,7 +243,8 @@ def _outer_container(
             elapsed = time.perf_counter() - elapsed_timer.start_time
             parts.append("elapsed ", style="dim")
             parts.append(format_hms(elapsed), style="bold")
-            parts.append(f" - qibo-client {version} ", style="dim")
+            if version is not None:
+                parts.append(f" - qibo-client {version} ", style="dim")
         bottom_title = parts
     grid.add_row(Rule(title=bottom_title, style="default"))
     return grid
@@ -268,9 +270,9 @@ class LiveOuter:
         inner = self.ui.renderable()
         yield _outer_container(
             self.title,
-            self.version,
             inner,
             elapsed_timer=self.elapsed_timer,
+            version=self.version,
         )
 
     def __rich_measure__(self, console: Console, options):
