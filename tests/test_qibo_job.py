@@ -456,68 +456,10 @@ class TestLiveTTYBranch:
         )
         assert job_status == qibo_job.QiboJobStatus.SUCCESS
 
-    @responses.activate
-    def test_live_branch_keyboard_toggle(self, monkeypatch):
-        from rich.panel import Panel
-        from rich.text import Text
-
-        self.obj.circuit = {"fake": "raw"}
-        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-
-        # Iteration 1: key 'c' -> visible=True
-        responses.add(
-            responses.GET, info_endpoint, json={"status": "pending"}, status=200
-        )
-        # Iteration 2: key 'c' -> visible=False
-        responses.add(
-            responses.GET, info_endpoint, json={"status": "pending"}, status=200
-        )
-        # Iteration 3: key None -> loop continues
-        responses.add(
-            responses.GET, info_endpoint, json={"status": "success"}, status=200
-        )
-
-        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
-
-        from rich.console import Console
-
-        fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
-        monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
-
-        key_seq = iter(["c", "c", None])
-
-        class FakeKeyReader:
-            active = True
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get_key(self):
-                return next(key_seq, None)
-
-        monkeypatch.setattr(
-            "qibo_client.ui.job_frontend.NonBlockingKeyReader", FakeKeyReader
-        )
-        monkeypatch.setattr(
-            "qibo_client.ui.job_frontend.build_circuit_panel",
-            lambda *a: Panel(Text("circuit")),
-        )
         self.obj._wait_for_response_to_get_request(1e-4, verbose=True)
 
     @responses.activate
-    def test_live_branch_with_circuit_visible(self, monkeypatch):
-        from rich.panel import Panel
-        from rich.text import Text
-
-        monkeypatch.setattr(
-            "qibo_client.ui.job_frontend.build_circuit_panel",
-            lambda *a: Panel(Text("circuit")),
-        )
-        self.obj.circuit = {"fake": "raw"}
+    def test_wait_non_live_non_verbose(self, caplog):
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         responses.add(
             responses.GET, info_endpoint, json={"status": "success"}, status=200
@@ -533,34 +475,9 @@ class TestLiveTTYBranch:
         fake_console = Console(file=__import__("io").StringIO(), force_terminal=True)
         monkeypatch.setattr("qibo_client.qibo_job.console", fake_console)
 
-        self.obj._wait_for_response_to_get_request(1e-4, verbose=True)
-
-    @responses.activate
-    def test_live_branch_keyboard_inactive(self, monkeypatch):
-        info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
-        responses.add(
-            responses.GET, info_endpoint, json={"status": "success"}, status=200
-        )
-        responses.add(
-            responses.GET, info_endpoint, json={"status": "success"}, status=200
-        )
-        download_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/download/"
-        responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
-
-        class FakeKeyReader:
-            active = False
-
-            def __enter__(self):
-                return self
-
-            def __exit__(self, *a):
-                pass
-
-            def get_key(self):
-                return None
-
         monkeypatch.setattr(
-            "qibo_client.ui.job_frontend.NonBlockingKeyReader", FakeKeyReader
+            "qibo_client.ui.job_frontend.build_circuit_panel",
+            lambda *a: Panel(Text("circuit")),
         )
         self.obj._wait_for_response_to_get_request(1e-4, verbose=True)
 

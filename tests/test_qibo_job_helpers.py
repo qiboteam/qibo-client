@@ -157,70 +157,6 @@ def test_ui_slots_empty_renderable():
     assert result.plain == ""
 
 
-def test_non_blocking_key_reader_non_tty(monkeypatch):
-    """NonBlockingKeyReader degrades gracefully when stdin is not a TTY."""
-    import io
-
-    monkeypatch.setattr("sys.stdin", io.StringIO(""))
-    with job_frontend.NonBlockingKeyReader() as reader:
-        assert not reader.active
-        assert reader.get_key() is None
-
-
-def test_non_blocking_key_reader_not_isatty(monkeypatch):
-    """Cover lines 98-99: fileno succeeds but isatty returns False."""
-    fake_fd = 99
-    monkeypatch.setattr(
-        "sys.stdin", type("FakeStdin", (), {"fileno": lambda self: fake_fd})()
-    )
-    monkeypatch.setattr(job_frontend.os, "isatty", lambda fd: False)
-
-    with job_frontend.NonBlockingKeyReader() as reader:
-        assert not reader.active
-        assert reader._fd is None
-
-
-def test_capture_circuit_drawing_none():
-    assert job_frontend._capture_circuit_drawing(None) is None
-
-
-def test_capture_circuit_drawing_valid():
-    import qibo
-
-    circ = qibo.Circuit(2)
-    circ.add(qibo.gates.H(0))
-    circ.add(qibo.gates.CNOT(0, 1))
-    result = job_frontend._capture_circuit_drawing(circ.raw)
-    assert result is not None
-    assert isinstance(result, str)
-
-
-def test_capture_circuit_drawing_invalid():
-    assert job_frontend._capture_circuit_drawing({"invalid": True}) is None
-
-
-def test_circuit_summary_none():
-    assert job_frontend._circuit_summary(None) is None
-
-
-def test_circuit_summary_valid():
-    import qibo
-
-    circ = qibo.Circuit(2)
-    circ.add(qibo.gates.H(0))
-    circ.add(qibo.gates.CNOT(0, 1))
-    result = job_frontend._circuit_summary(circ.raw)
-    assert result is not None
-    assert result["nqubits"] == 2
-    assert result["ngates"] == 2
-    assert "h" in result["gate_names"]
-    assert "cx" in result["gate_names"]
-
-
-def test_circuit_summary_invalid():
-    assert job_frontend._circuit_summary({"invalid": True}) is None
-
-
 def test_status_icon_all_variants():
     for status in (
         "QUEUEING",
@@ -236,24 +172,6 @@ def test_status_icon_all_variants():
     unknown = job_frontend._status_icon("UNKNOWN")
     assert isinstance(unknown, Text)
     assert unknown.plain == "?"
-
-
-def test_build_circuit_panel_with_valid_circuit():
-    import qibo
-
-    circ = qibo.Circuit(2)
-    circ.add(qibo.gates.H(0))
-    circ.add(qibo.gates.CNOT(0, 1))
-    panel = job_frontend.build_circuit_panel(circ.raw, nshots=100)
-    assert panel is not None
-    text = render_to_text(panel)
-    assert "circuit summary" in text
-    assert "nshots" in text
-    assert "100" in text
-
-
-def test_build_circuit_panel_none():
-    assert job_frontend.build_circuit_panel(None, nshots=None) is None
 
 
 def test_outer_container_with_elapsed():
@@ -375,61 +293,6 @@ def test_final_banner_no_device_no_project():
     )
     text = render_to_text(panel)
     assert "pid-1" in text
-
-
-def test_non_blocking_key_reader_tty_path(monkeypatch):
-    """Cover NonBlockingKeyReader lines 97-102, 110: full TTY enter/exit/get_key."""
-    fake_fd = 99
-    old_settings = [1, 2, 3]  # fake termios settings
-
-    monkeypatch.setattr(
-        "sys.stdin", type("FakeStdin", (), {"fileno": lambda self: fake_fd})()
-    )
-    monkeypatch.setattr(job_frontend.os, "isatty", lambda fd: True)
-    monkeypatch.setattr(job_frontend.termios, "tcgetattr", lambda fd: old_settings)
-    monkeypatch.setattr(job_frontend.tty, "setcbreak", lambda fd: None)
-
-    restore_calls = []
-    monkeypatch.setattr(
-        job_frontend.termios,
-        "tcsetattr",
-        lambda fd, when, settings: restore_calls.append((fd, when, settings)),
-    )
-
-    with job_frontend.NonBlockingKeyReader() as reader:
-        assert reader.active is True
-        assert reader._fd == fake_fd
-        assert reader._old_settings == old_settings
-
-    # __exit__ should have restored settings
-    assert len(restore_calls) == 1
-    assert restore_calls[0][0] == fake_fd
-    assert restore_calls[0][2] == old_settings
-
-
-def test_non_blocking_key_reader_get_key_with_data(monkeypatch):
-    """Cover NonBlockingKeyReader lines 116-119: get_key when data available."""
-    reader = job_frontend.NonBlockingKeyReader()
-    reader._fd = 99
-    reader.active = True
-
-    monkeypatch.setattr(
-        job_frontend.select, "select", lambda r, w, x, t: ([99], [], [])
-    )
-    monkeypatch.setattr(job_frontend.os, "read", lambda fd, n: b"x")
-
-    assert reader.get_key() == "x"
-
-
-def test_non_blocking_key_reader_get_key_no_data(monkeypatch):
-    """Cover NonBlockingKeyReader line 119: get_key returns None when no data."""
-    reader = job_frontend.NonBlockingKeyReader()
-    reader._fd = 99
-    reader.active = True
-
-    monkeypatch.setattr(job_frontend.select, "select", lambda r, w, x, t: ([], [], []))
-
-    assert reader.get_key() is None
 
 
 def test_elapsed_timer_rich_measure():

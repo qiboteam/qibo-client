@@ -2,13 +2,7 @@
 
 from __future__ import annotations
 
-import io
-import os
-import select
-import sys
-import termios
 import time
-import tty
 import typing as T
 
 from rich import box
@@ -35,7 +29,6 @@ CLR_POSTPROC = "bold magenta"
 CLR_MUTED = "dim"
 CLR_TIMER = "bold yellow"
 CLR_LABEL = "dim"
-CLR_CIRCUIT = "cyan"
 
 # ---------------------------------------------------------------------------
 # Stage style definition
@@ -69,79 +62,6 @@ def format_hms(seconds: int | float | None) -> str:
     h, rem = divmod(total, 3600)
     m, s = divmod(rem, 60)
     return f"{h}:{m:02d}:{s:02d}"
-
-
-class NonBlockingKeyReader:
-    """Context manager that puts stdin into raw/non-blocking mode for keypress detection."""
-
-    def __init__(self):
-        self._fd: int | None = None
-        self._old_settings = None
-        self.active: bool = False
-
-    def __enter__(self):
-        try:
-            self._fd = sys.stdin.fileno()
-            if not os.isatty(self._fd):
-                self._fd = None
-                return self
-            self._old_settings = termios.tcgetattr(self._fd)
-            tty.setcbreak(self._fd)
-            self.active = True
-        except (termios.error, ValueError, io.UnsupportedOperation, OSError):
-            # Not a real TTY (e.g. Jupyter, piped stdin, CI) – degrade gracefully
-            self._fd = None
-        return self
-
-    def __exit__(self, *exc):
-        if self._fd is not None and self._old_settings is not None:
-            termios.tcsetattr(self._fd, termios.TCSADRAIN, self._old_settings)
-
-    def get_key(self) -> str | None:
-        """Return a single character if a key was pressed, else None."""
-        if self._fd is None:
-            return None
-        rlist, _, _ = select.select([self._fd], [], [], 0)
-        if rlist:
-            return os.read(self._fd, 1).decode("utf-8", errors="ignore")
-        return None
-
-
-def _capture_circuit_drawing(circuit_dict: dict | None) -> str | None:
-    """Reconstruct a Qibo circuit from its raw dict and capture its draw() output."""
-    if circuit_dict is None:
-        return None
-    try:
-        import qibo
-
-        circ = qibo.Circuit.from_dict(circuit_dict)
-        buf = io.StringIO()
-        old_stdout = sys.stdout
-        sys.stdout = buf
-        circ.draw()
-        sys.stdout = old_stdout
-        drawing = buf.getvalue().rstrip("\n")
-        return drawing if drawing else None
-    except Exception:
-        return None
-
-
-def _circuit_summary(circuit_dict: dict | None) -> dict | None:
-    """Extract summary stats from a circuit dict."""
-    if circuit_dict is None:
-        return None
-    try:
-        import qibo
-
-        circ = qibo.Circuit.from_dict(circuit_dict)
-        return {
-            "nqubits": circ.nqubits,
-            "depth": circ.depth,
-            "ngates": circ.ngates,
-            "gate_names": dict(circ.gate_names),
-        }
-    except Exception:
-        return None
 
 
 # ---------------------------------------------------------------------------
@@ -279,51 +199,6 @@ class LiveOuter:
         from rich.measure import Measurement
 
         return Measurement(options.min_width, options.max_width)
-
-
-# ---------------------------------------------------------------------------
-# Circuit panel
-# ---------------------------------------------------------------------------
-def build_circuit_panel(circuit_dict: dict | None, nshots: int | None) -> Panel | None:
-    """Build a panel showing the circuit diagram and summary stats."""
-    drawing = _capture_circuit_drawing(circuit_dict)
-    summary = _circuit_summary(circuit_dict)
-    if drawing is None and summary is None:
-        return None
-
-    parts: list[RenderableType] = []
-
-    if drawing is not None:
-        parts.append(drawing)
-
-    if summary is not None:
-        stats = Table.grid(padding=(0, 2), expand=False)
-        stats.add_column(style=CLR_LABEL, no_wrap=True)
-        stats.add_column(style="bold", no_wrap=True)
-        stats.add_row("qubits", str(summary["nqubits"]))
-        stats.add_row("nshots", str(nshots))
-        stats.add_row("depth", str(summary["depth"]))
-        stats.add_row("gates", str(summary["ngates"]))
-
-        # Gate breakdown
-        gate_parts = []
-        for gate, count in sorted(summary["gate_names"].items(), key=lambda x: -x[1]):
-            gate_parts.append(f"[{CLR_ACCENT}]{gate}[/]:[bold]{count}[/]")
-        if gate_parts:
-            stats.add_row("breakdown", Text.from_markup("  ".join(gate_parts)))
-
-        parts.append(stats)
-
-    content = Group(*parts) if len(parts) > 1 else parts[0]
-    return Panel(
-        content,
-        title=f"[{CLR_PRIMARY_BOLD}]circuit summary[/]",
-        border_style=CLR_PRIMARY,
-        box=box.ROUNDED,
-        expand=False,
-        padding=(0, 1),
-        title_align="left",
-    )
 
 
 # ---------------------------------------------------------------------------
@@ -525,10 +400,8 @@ class UISlots:
 
 __all__ = [
     "ElapsedTimer",
-    "NonBlockingKeyReader",
     "UISlots",
     "LiveOuter",
-    "build_circuit_panel",
     "build_final_banner",
     "build_status_panel",
     "format_hms",
