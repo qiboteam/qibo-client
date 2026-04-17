@@ -116,12 +116,6 @@ def test_status_panel_shows_metadata_row():
     assert "tii-sim" in text
 
 
-def test_pending_panel_waits_for_info():
-    panel = job_frontend._pending_panel(None, None)
-    text = render_to_text(panel)
-    assert "waiting for queue info" in text
-
-
 def test_final_banner_contains_metadata():
     panel = job_frontend.build_final_banner(
         "SUCCESS", pid="pid-123", device="qpu-a", project="prj"
@@ -131,13 +125,6 @@ def test_final_banner_contains_metadata():
     assert "qpu-a" in text
     assert "prj" in text
     assert panel.border_style == "green"
-
-
-def test_build_event_panel():
-    panel = job_frontend._build_event_panel("Test Event", "details", icon="⭐")
-    text = render_to_text(panel)
-    assert "Test Event" in text
-    assert "details" in text
 
 
 def test_outer_container_and_outer_render_title():
@@ -303,13 +290,6 @@ def test_elapsed_timer_renders():
     console.print(timer)
     text = console.export_text()
     assert "elapsed" in text
-
-
-def test_pending_panel_with_info():
-    panel = job_frontend._pending_panel(3, 120)
-    text = render_to_text(panel)
-    assert "3" in text
-    assert "0:02:00" in text
 
 
 def test_log_status_non_tty_not_verbose():

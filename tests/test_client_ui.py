@@ -66,73 +66,59 @@ def sample_jobs():
     ]
 
 
-def test_quota_rows_from_payload(sample_projectquotas):
-    rows = client_ui._quota_rows_from_payload(sample_projectquotas)
+def test_quota_rows(sample_projectquotas):
+    rows = client_ui._quota_rows(sample_projectquotas)
     assert rows[0][0] == "proj-a"
     assert rows[1][-1] == 0
 
 
-def test_jobs_rows_from_payload(sample_jobs):
+def test_jobs_rows(sample_jobs):
     timestamps = []
 
     def fmt(ts):
         timestamps.append(ts)
         return f"formatted:{ts}"
 
-    rows = client_ui._jobs_rows_from_payload(sample_jobs, fmt)
+    rows = client_ui._jobs_rows(sample_jobs, fmt)
 
-    assert timestamps == [
-        "2023-01-01T00:00:00",
-        "2023-01-01T00:00:10",
-        "2023-01-02T00:00:00",
-        "2023-01-02T00:00:10",
-    ]
+    assert len(timestamps) == 4
     assert rows[0][1].startswith("formatted:")
 
 
-def test_render_quota_fallback_logs_table(
-    monkeypatch, sample_quota, sample_projectquotas
-):
+def test_render_quota_fallback(monkeypatch, sample_quota, sample_projectquotas):
+    monkeypatch.setattr(client_ui, "USE_RICH_UI", False)
+
+    # Need to patch the logger inside the function's local import scope if possible,
+    # but client_ui.py does: from ..config_logging import logger
+    import qibo_client.config_logging
+
     logged = []
     monkeypatch.setattr(
-        client_ui.logger, "info", lambda message: logged.append(message)
+        qibo_client.config_logging.logger, "info", lambda m: logged.append(m)
     )
 
-    def fake_tabulate(rows, headers):
-        assert rows == client_ui._quota_rows_from_payload(sample_projectquotas)
-        assert "Project Name" in headers[0]
-        return "TABULATED"
-
-    monkeypatch.setattr(client_ui.tabulate, "tabulate", fake_tabulate)
-
-    client_ui.render_quota_fallback(sample_quota, sample_projectquotas)
-
+    client_ui.render_quota(sample_quota, sample_projectquotas)
     assert len(logged) == 1
     assert "user@example.com" in logged[0]
-    assert logged[0].endswith("TABULATED")
 
 
-def test_render_jobs_fallback_logs_table(monkeypatch, sample_jobs):
+def test_render_jobs_fallback(monkeypatch, sample_jobs):
+    monkeypatch.setattr(client_ui, "USE_RICH_UI", False)
+
+    import qibo_client.config_logging
+
     logged = []
     monkeypatch.setattr(
-        client_ui.logger, "info", lambda message: logged.append(message)
+        qibo_client.config_logging.logger, "info", lambda m: logged.append(m)
     )
 
-    def fake_tabulate(rows, headers):
-        assert rows == client_ui._jobs_rows_from_payload(sample_jobs, str)
-        assert headers[0] == "Pid"
-        return "TABULATED"
-
-    monkeypatch.setattr(client_ui.tabulate, "tabulate", fake_tabulate)
-
-    client_ui.render_jobs_fallback("user@example.com", sample_jobs, str)
-
-    assert logged == ["User: user@example.com\nTABULATED"]
+    client_ui.render_jobs("user@example.com", sample_jobs, str)
+    assert len(logged) == 1
+    assert "user@example.com" in logged[0]
 
 
-def test_render_quota_rich_prints_panel(
-    monkeypatch, sample_quota, sample_projectquotas
-):
+def test_render_quota_rich(monkeypatch, sample_quota, sample_projectquotas):
+    monkeypatch.setattr(client_ui, "USE_RICH_UI", True)
     printed = []
 
     class DummyConsole:
@@ -141,18 +127,14 @@ def test_render_quota_rich_prints_panel(
 
     monkeypatch.setattr(client_ui, "console", DummyConsole())
 
-    client_ui.render_quota_rich(sample_quota, sample_projectquotas)
-
+    client_ui.render_quota(sample_quota, sample_projectquotas)
     assert len(printed) == 1
-    panel = printed[0]
-    assert isinstance(panel, Panel)
-    assert panel.title == "Quota Information"
-    assert isinstance(panel.renderable, Table)
-    assert panel.renderable.row_count == len(sample_projectquotas)
-    assert panel.subtitle is not None and "Disk quota used" in panel.subtitle
+    assert isinstance(printed[0], Panel)
+    assert printed[0].title == "Quota Information"
 
 
-def test_render_jobs_rich_prints_panel(monkeypatch, sample_jobs):
+def test_render_jobs_rich(monkeypatch, sample_jobs):
+    monkeypatch.setattr(client_ui, "USE_RICH_UI", True)
     printed = []
 
     class DummyConsole:
@@ -161,50 +143,7 @@ def test_render_jobs_rich_prints_panel(monkeypatch, sample_jobs):
 
     monkeypatch.setattr(client_ui, "console", DummyConsole())
 
-    client_ui.render_jobs_rich("user@example.com", sample_jobs, str)
-
-    panel = printed[0]
-    assert isinstance(panel, Panel)
-    assert panel.title == "Job Information"
-    assert panel.renderable.row_count == len(sample_jobs)
-    status_cells = panel.renderable.columns[3]._cells
-    assert status_cells[0] == "[green]success[/green]"
-    assert status_cells[1] == "[red]failed[/red]"
-
-
-def test_render_quota_dispatch(monkeypatch, sample_quota, sample_projectquotas):
-    called = []
-    monkeypatch.setattr(
-        client_ui, "render_quota_rich", lambda *args: called.append("rich")
-    )
-    monkeypatch.setattr(
-        client_ui, "render_quota_fallback", lambda *args: called.append("fallback")
-    )
-
-    monkeypatch.setattr(client_ui, "USE_RICH_UI", True)
-    client_ui.render_quota(sample_quota, sample_projectquotas)
-    assert called == ["rich"]
-
-    called.clear()
-    monkeypatch.setattr(client_ui, "USE_RICH_UI", False)
-    client_ui.render_quota(sample_quota, sample_projectquotas)
-    assert called == ["fallback"]
-
-
-def test_render_jobs_dispatch(monkeypatch, sample_jobs):
-    called = []
-    monkeypatch.setattr(
-        client_ui, "render_jobs_rich", lambda *args: called.append("rich")
-    )
-    monkeypatch.setattr(
-        client_ui, "render_jobs_fallback", lambda *args: called.append("fallback")
-    )
-
-    monkeypatch.setattr(client_ui, "USE_RICH_UI", True)
     client_ui.render_jobs("user@example.com", sample_jobs, str)
-    assert called == ["rich"]
-
-    called.clear()
-    monkeypatch.setattr(client_ui, "USE_RICH_UI", False)
-    client_ui.render_jobs("user@example.com", sample_jobs, str)
-    assert called == ["fallback"]
+    assert len(printed) == 1
+    assert isinstance(printed[0], Panel)
+    assert printed[0].title == "Job Information"

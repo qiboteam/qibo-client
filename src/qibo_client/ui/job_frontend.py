@@ -12,7 +12,6 @@ import tty
 import typing as T
 
 from rich import box
-from rich.align import Align
 from rich.console import Console, Group, RenderableType
 from rich.panel import Panel
 from rich.rule import Rule
@@ -39,19 +38,8 @@ CLR_LABEL = "dim"
 CLR_CIRCUIT = "cyan"
 
 # ---------------------------------------------------------------------------
-# Stage pipeline definition
+# Stage style definition
 # ---------------------------------------------------------------------------
-STAGES = ("QUEUEING", "PENDING", "RUNNING", "POSTPROCESSING", "SUCCESS")
-
-_STAGE_ICONS: dict[str, str] = {
-    "QUEUEING": "*",
-    "PENDING": "*",
-    "RUNNING": ">",
-    "POSTPROCESSING": "~",
-    "SUCCESS": "+",
-    "ERROR": "x",
-}
-
 _STAGE_STYLE: dict[str, str] = {
     "QUEUEING": f"bold {CLR_WARNING}",
     "PENDING": f"bold {CLR_ACCENT}",
@@ -295,27 +283,6 @@ class LiveOuter:
 
 
 # ---------------------------------------------------------------------------
-# Event panel (job posted)
-# ---------------------------------------------------------------------------
-def _build_event_panel(
-    title: str, subtitle: str | None = None, *, icon: str = ">"
-) -> Panel:
-    content = Table.grid(padding=(0, 1))
-    content.add_column(no_wrap=True)
-    content.add_column(no_wrap=False)
-    content.add_row(Text(icon), Text.from_markup(f"[bold]{title}[/]"))
-
-    return Panel(
-        content,
-        box=box.ROUNDED,
-        border_style=CLR_PRIMARY,
-        expand=True,
-        subtitle=Text(subtitle, style="dim") if subtitle else None,
-        subtitle_align="right",
-    )
-
-
-# ---------------------------------------------------------------------------
 # Circuit panel
 # ---------------------------------------------------------------------------
 def build_circuit_panel(circuit_dict: dict | None, nshots: int | None) -> Panel | None:
@@ -485,25 +452,6 @@ def build_status_panel(
         subtitle="job status",
         subtitle_align="right",
     )
-
-
-# ---------------------------------------------------------------------------
-# Pending detail panel (kept for backward compat)
-# ---------------------------------------------------------------------------
-def _pending_panel(
-    queue_position: int | None, etd_seconds: int | float | None
-) -> Panel:
-    table = Table.grid(expand=True)
-    table.add_column(justify="left")
-    table.add_column(justify="right")
-    table.add_row(f"[bold {CLR_ACCENT}]Job PENDING[/]", "")
-    if queue_position is not None:
-        table.add_row("Position in queue:", f"[bold]{queue_position}[/]")
-    if etd_seconds is not None:
-        table.add_row("Max ETD:", f"[bold]{format_hms(etd_seconds)}[/]")
-    if queue_position is None and etd_seconds is None:
-        table.add_row("", f"[{CLR_MUTED}]waiting for queue info…[/]")
-    return Panel(table, border_style=CLR_ACCENT, box=box.ROUNDED, expand=True)
 
 
 # ---------------------------------------------------------------------------
