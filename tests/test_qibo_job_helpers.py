@@ -5,7 +5,6 @@ from rich.console import Console
 from rich.spinner import Spinner
 from rich.text import Text
 
-from qibo_client.qibo_job import QiboJobStatus
 from qibo_client.ui import job_frontend
 
 
@@ -109,14 +108,12 @@ def test_status_panel_shows_metadata_row():
         "RUNNING",
         queue_position=None,
         etd_seconds=None,
-        nshots=150,
         pid="abc123",
         device="tii-sim",
     )
     text = render_to_text(panel)
-    assert "nshots 150" in text
-    assert "pid abc123" in text
-    assert "device tii-sim" in text
+    assert "abc123" in text
+    assert "tii-sim" in text
 
 
 def test_pending_panel_waits_for_info():
@@ -127,25 +124,20 @@ def test_pending_panel_waits_for_info():
 
 def test_final_banner_contains_metadata():
     panel = job_frontend.build_final_banner(
-        "SUCCESS", pid="pid-123", device="qpu-a", elapsed_seconds=90
+        "SUCCESS", pid="pid-123", device="qpu-a", project="prj"
     )
     text = render_to_text(panel)
-    assert "pid pid-123" in text
-    assert "device qpu-a" in text
-    assert "elapsed 0:01:30" in text
+    assert "pid-123" in text
+    assert "qpu-a" in text
+    assert "prj" in text
     assert panel.border_style == "green"
 
 
-def test_build_event_panel_and_job_posted_panel():
+def test_build_event_panel():
     panel = job_frontend._build_event_panel("Test Event", "details", icon="⭐")
     text = render_to_text(panel)
     assert "Test Event" in text
     assert "details" in text
-
-    job_panel = job_frontend.build_event_job_posted_panel("device-a", "pid-1")
-    job_text = render_to_text(job_panel)
-    assert "Job posted on device-a" in job_text
-    assert "pid pid-1" in job_text
 
 
 def test_outer_container_and_outer_render_title():
@@ -244,19 +236,6 @@ def test_circuit_summary_invalid():
     assert job_frontend._circuit_summary({"invalid": True}) is None
 
 
-def test_build_pipeline_tracker_error_mode():
-    renderable = job_frontend._build_pipeline_tracker("ERROR")
-    text = render_to_text(renderable)
-    assert "ERROR" in text
-
-
-def test_build_pipeline_tracker_normal_stages():
-    for stage in job_frontend.STAGES:
-        renderable = job_frontend._build_pipeline_tracker(stage)
-        text = render_to_text(renderable)
-        assert stage in text
-
-
 def test_status_icon_all_variants():
     for status in (
         "QUEUEING",
@@ -280,14 +259,16 @@ def test_build_circuit_panel_with_valid_circuit():
     circ = qibo.Circuit(2)
     circ.add(qibo.gates.H(0))
     circ.add(qibo.gates.CNOT(0, 1))
-    panel = job_frontend.build_circuit_panel(circ.raw)
+    panel = job_frontend.build_circuit_panel(circ.raw, nshots=100)
     assert panel is not None
     text = render_to_text(panel)
-    assert "Circuit" in text
+    assert "circuit summary" in text
+    assert "nshots" in text
+    assert "100" in text
 
 
 def test_build_circuit_panel_none():
-    assert job_frontend.build_circuit_panel(None) is None
+    assert job_frontend.build_circuit_panel(None, nshots=None) is None
 
 
 def test_outer_container_with_elapsed_and_keybind():
@@ -401,47 +382,22 @@ def test_log_status_non_tty_pending_with_initial_info(caplog):
     assert "position in queue: 5" in caplog.messages[-1]
 
 
-def test_build_event_job_posted_panel_with_nshots():
-    panel = job_frontend.build_event_job_posted_panel("dev-a", "pid-1", nshots=100)
-    text = render_to_text(panel)
-    assert "nshots 100" in text
-    assert "pid pid-1" in text
-
-
-def test_build_event_job_posted_panel_with_project():
-    panel = job_frontend.build_event_job_posted_panel(
-        "dev", "p1", nshots=10, project="prj"
-    )
-    text = render_to_text(panel)
-    assert "project prj" in text
-    assert "nshots 10" in text
-    assert "pid p1" in text
-
-
-def test_build_event_job_posted_panel_project_without_nshots():
-    panel = job_frontend.build_event_job_posted_panel("dev", "p1", project="prj")
-    text = render_to_text(panel)
-    assert "project prj" in text
-    assert "nshots" not in text
-    assert "pid p1" in text
-
-
 def test_final_banner_error():
     panel = job_frontend.build_final_banner(
-        "ERROR", pid="pid-err", device="qpu-x", elapsed_seconds=45
+        "ERROR", pid="pid-err", device="qpu-x", project=None
     )
     text = render_to_text(panel)
     assert "ERROR" in text
-    assert "pid pid-err" in text
+    assert "pid-err" in text
     assert panel.border_style == "red"
 
 
-def test_final_banner_no_device_no_nshots():
+def test_final_banner_no_device_no_project():
     panel = job_frontend.build_final_banner(
-        "SUCCESS", pid="pid-1", device=None, elapsed_seconds=None, nshots=None
+        "SUCCESS", pid="pid-1", device=None, project=None
     )
     text = render_to_text(panel)
-    assert "pid pid-1" in text
+    assert "pid-1" in text
 
 
 def test_non_blocking_key_reader_tty_path(monkeypatch):
