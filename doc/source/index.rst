@@ -30,6 +30,12 @@ The qibo-client package can be installed through pip:
 
    pip install qibo-client
 
+For Jupyter notebook support (including progress bars and rich UI), you can install the optional dependencies:
+
+.. code-block:: bash
+
+   pip install "qibo-client[notebook]"
+
 
 Quick tutorial
 ==============
