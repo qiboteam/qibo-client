@@ -118,9 +118,16 @@ def test_status_panel_shows_metadata_row():
 
 def test_final_banner_contains_metadata():
     panel = job_frontend.build_final_banner(
-        "SUCCESS", pid="pid-123", device="qpu-a", project="prj"
+        "SUCCESS",
+        provider="pippo",
+        version="1.1.1",
+        pid="pid-123",
+        device="qpu-a",
+        project="prj",
     )
     text = render_to_text(panel)
+    assert "pippo" in text
+    assert "1.1.1" in text
     assert "pid-123" in text
     assert "qpu-a" in text
     assert "prj" in text
@@ -279,9 +286,16 @@ def test_log_status_non_tty_pending_with_initial_info(caplog):
 
 def test_final_banner_error():
     panel = job_frontend.build_final_banner(
-        "ERROR", pid="pid-err", device="qpu-x", project=None
+        "ERROR",
+        provider="pippo",
+        version="1.1.1",
+        pid="pid-err",
+        device="qpu-x",
+        project=None,
     )
     text = render_to_text(panel)
+    assert "pippo" in text
+    assert "1.1.1" in text
     assert "ERROR" in text
     assert "pid-err" in text
     assert panel.border_style == "red"
@@ -289,7 +303,7 @@ def test_final_banner_error():
 
 def test_final_banner_no_device_no_project():
     panel = job_frontend.build_final_banner(
-        "SUCCESS", pid="pid-1", device=None, project=None
+        "SUCCESS", provider=None, version=None, pid="pid-1", device=None, project=None
     )
     text = render_to_text(panel)
     assert "pid-1" in text

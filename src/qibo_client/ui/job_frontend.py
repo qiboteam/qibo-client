@@ -163,8 +163,6 @@ def _outer_container(
             elapsed = time.perf_counter() - elapsed_timer.start_time
             parts.append("elapsed ", style="dim")
             parts.append(format_hms(elapsed), style="bold")
-            if version is not None:
-                parts.append(f" - qibo-client {version} ", style="dim")
         bottom_title = parts
     grid.add_row(Rule(title=bottom_title, style="default"))
     return grid
@@ -266,6 +264,26 @@ def _build_meta_row(
 
 
 # ---------------------------------------------------------------------------
+# Shared metadata row
+# ---------------------------------------------------------------------------
+def _build_provider_row(
+    *,
+    provider: str | None = None,
+    version: str | None = None,
+) -> Table:
+    """Build a compact metadata row:  pid  device  project."""
+    meta = Table.grid(padding=(0, 2), expand=True)
+    meta.add_column()
+    meta.add_column(justify="right", no_wrap=True)
+
+    meta.add_row(
+        Text.from_markup(f"[{CLR_LABEL}]provider[/] [bold]{provider or '-'}[/]"),
+        Text.from_markup(f"[{CLR_LABEL}]qibo-client[/] [bold]{version or '-'}[/]"),
+    )
+    return meta
+
+
+# ---------------------------------------------------------------------------
 # Status panel (main live panel)
 # ---------------------------------------------------------------------------
 def build_status_panel(
@@ -273,6 +291,8 @@ def build_status_panel(
     queue_position: int | None,
     etd_seconds: int | float | None,
     *,
+    provider: str | None = None,
+    version: str | None = None,
     pid: str | None = None,
     device: str | None = None,
     project: str | None = None,
@@ -284,7 +304,12 @@ def build_status_panel(
 
     border = _BORDER_STYLE.get(status, "dim")
 
-    meta = _build_meta_row(
+    meta0 = _build_provider_row(
+        provider=provider,
+        version=version,
+    )
+
+    meta1 = _build_meta_row(
         pid=pid,
         device=device,
         project=project,
@@ -313,7 +338,9 @@ def build_status_panel(
     info_grid.add_row(left_cell, mid, right)
 
     content = Group(
-        meta,
+        meta0,
+        Rule(style=CLR_MUTED),
+        meta1,
         Rule(style=CLR_MUTED),
         info_grid,
     )
@@ -332,6 +359,8 @@ def build_status_panel(
 def build_final_banner(
     status: str,
     *,
+    provider: str,
+    version: str,
     pid: str,
     device: str | None,
     project: str | None,
@@ -340,7 +369,12 @@ def build_final_banner(
     color = CLR_SUCCESS if is_success else CLR_ERROR
     icon = "+" if is_success else "x"
 
-    meta = _build_meta_row(
+    meta0 = _build_provider_row(
+        provider=provider,
+        version=version,
+    )
+
+    meta1 = _build_meta_row(
         pid=pid,
         device=device,
         project=project,
@@ -351,7 +385,9 @@ def build_final_banner(
     )
 
     content = Group(
-        meta,
+        meta0,
+        Rule(style=color),
+        meta1,
         Rule(style=color),
         headline,
     )

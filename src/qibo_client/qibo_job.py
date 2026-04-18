@@ -171,13 +171,21 @@ class QiboJob:
     def _wait_live(self, interval: float):
         elapsed_timer = ElapsedTimer()
         ui = UISlots(order=("header", "status", "footer"))
-
-        outer = LiveOuter(
-            f"job status @ {self.base_url}",
-            version,
-            ui,
-            elapsed_timer=elapsed_timer,
+        ui.set(
+            "status",
+            build_status_panel(
+                "STARTING",
+                self.queue_position,
+                self.seconds_to_job_start,
+                provider=self.base_url,
+                version=version,
+                pid=self.pid,
+                device=self.device,
+                project=self.project,
+            ),
         )
+
+        outer = LiveOuter("job status", version, ui, elapsed_timer=elapsed_timer)
 
         with Live(outer, console=console, vertical_overflow="visible") as live:
             while True:
@@ -189,6 +197,8 @@ class QiboJob:
                             status.name,
                             self.queue_position,
                             self.seconds_to_job_start,
+                            provider=self.base_url,
+                            version=version,
                             pid=self.pid,
                             device=self.device,
                             project=self.project,
@@ -205,6 +215,8 @@ class QiboJob:
                         "status",
                         build_final_banner(
                             status.name,
+                            provider=self.base_url,
+                            version=version,
                             pid=self.pid,
                             device=self.device,
                             project=self.project,
