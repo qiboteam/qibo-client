@@ -158,10 +158,7 @@ class QiboJob:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
 
         use_live = verbose and USE_RICH_UI
-        status = self.refresh()
-
-        if not verbose and status not in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-            logger.info("Please wait until your job is completed...")
+        self.refresh()
 
         if use_live:
             return self._wait_live(seconds_between_checks)

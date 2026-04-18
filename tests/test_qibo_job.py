@@ -497,7 +497,6 @@ class TestLiveTTYBranch:
         responses.add(responses.GET, download_endpoint, json={"data": "ok"}, status=200)
 
         self.obj._wait_for_response_to_get_request(1e-4, verbose=False)
-        assert "Please wait" in "".join(caplog.messages)
 
     @responses.activate
     def test_live_branch_with_postprocessing(self, monkeypatch):
