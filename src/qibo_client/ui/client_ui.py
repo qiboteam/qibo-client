@@ -1,3 +1,9 @@
+"""UI rendering functions for quota and job information.
+
+This module provides functions for rendering quota information and job lists
+using tabulate and Rich UI components.
+"""
+
 import tabulate
 from rich import box
 from rich.panel import Panel
@@ -7,6 +13,14 @@ from .settings import USE_RICH_UI, console
 
 
 def _quota_rows(projectquotas: list[dict]) -> list[tuple]:
+    """Extract quota details into a flat tuple format for table rendering.
+
+    Args:
+        projectquotas: List of project quota dictionaries
+
+    Returns:
+        List of tuples containing quota details
+    """
     return [
         (
             t["project"],
@@ -24,6 +38,15 @@ def _quota_rows(projectquotas: list[dict]) -> list[tuple]:
 
 
 def _jobs_rows(jobs: list[dict], fmt) -> list[tuple]:
+    """Extract job details into a flat tuple format for table rendering.
+
+    Args:
+        jobs: List of job dictionaries
+        fmt: Function to format datetime strings
+
+    Returns:
+        List of tuples containing job details
+    """
     return [
         (
             job["pid"],
@@ -37,6 +60,12 @@ def _jobs_rows(jobs: list[dict], fmt) -> list[tuple]:
 
 
 def render_quota(disk_quota: dict, projectquotas: list[dict]) -> None:
+    """Render quota information using Rich UI or fallback logging.
+
+    Args:
+        disk_quota: Disk quota information dictionary
+        projectquotas: List of project quota dictionaries
+    """
     if not USE_RICH_UI:
         from ..config_logging import logger
 
@@ -108,6 +137,13 @@ def render_quota(disk_quota: dict, projectquotas: list[dict]) -> None:
 
 
 def render_jobs(user: str, jobs: list[dict], fmt) -> None:
+    """Render job information using Rich UI or fallback logging.
+
+    Args:
+        user: Email address of the user
+        jobs: List of job dictionaries
+        fmt: Function to format datetime strings
+    """
     if not USE_RICH_UI:
         from ..config_logging import logger
 
