@@ -1,4 +1,8 @@
-"""Helpers for presenting errors on CLI/notebook front-ends."""
+"""Helpers for presenting errors on CLI/notebook front-ends.
+
+This module provides functions and classes for rendering API errors with
+appropriate styling based on whether Rich UI is available and in which context.
+"""
 
 from __future__ import annotations
 
@@ -16,7 +20,14 @@ except Exception:  # pragma: no cover - settings import failed, fallback to plai
 
 
 def _build_api_error_panel(error: QiboApiError):
-    """Return a Rich panel describing the error, or None if Rich unavailable."""
+    """Return a Rich panel describing the error, or None if Rich unavailable.
+
+    Args:
+        error: The QiboApiError instance to render
+
+    Returns:
+        A Rich Panel object or None if Rich is unavailable
+    """
     title_text = Text.assemble(
         ("API Error ", "bold red"),
     )
@@ -37,7 +48,14 @@ def _build_api_error_panel(error: QiboApiError):
 
 
 def print_api_error(error: QiboApiError) -> None:
-    """Render the given error using Rich when available, fallback to plain text."""
+    """Render the given error using Rich when available, fallback to plain text.
+
+    This function provides the best possible error visualization based on the
+    available environment (terminal, notebook, console).
+
+    Args:
+        error: The QiboApiError instance to print
+    """
     message = error.summary()
 
     if USE_RICH_UI and console is not None:
@@ -48,7 +66,7 @@ def print_api_error(error: QiboApiError) -> None:
             console.print(message, style="bold red")
         return
 
-    # Final fallback: Rich disabled/unavailable.
+    # Final fallback: Rich disabled/unavailable. Use plain text output.
     print(message)
 
 

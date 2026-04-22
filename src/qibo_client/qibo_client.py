@@ -1,9 +1,13 @@
-"""The module implementing the Client class."""
+"""Client class for interacting with the Qibo server.
+
+This module implements the main Client class for managing interactions
+with the remote Qibo server, including job submission and monitoring.
+"""
 
 import importlib.metadata as im
 import typing as T
 
-import dateutil
+import dateutil.parser
 import qibo
 from packaging.version import Version
 
@@ -12,34 +16,50 @@ from .config_logging import logger
 from .exceptions import JobPostServerError
 from .qibo_job import QiboJob
 from .ui import client_ui as ui
-from .ui.job_frontend import build_event_job_posted_panel
 from .utils import QiboApiRequest
 
 version = im.version(__package__)
 
 
 class Client:
-    """Class to manage the interaction with the remote server."""
+    """Client for managing Qibo server interactions.
+
+    This class provides a high-level interface for submitting quantum computing
+    jobs to the Qibo server, monitoring their progress, and retrieving results.
+
+    Attributes:
+        token: Authentication token for server access
+        headers: HTTP headers including authentication
+        base_url: Base URL for the Qibo server API
+        pid: Process ID of the most recent job
+        results_folder: Folder where job results are stored
+        results_path: Path to the most recent results file
+    """
 
     def __init__(self, token: str, url: str):
-        """
-        :param token: the authentication token associated to the webapp user
-        :type token: str
-        :param url: the server address
-        :type url: str
+        """Initialize the Client with authentication.
+
+        Args:
+            token: Authentication token for the webapp user
+            url: Server API URL
         """
         self.token = token
         self.headers = {"x-api-token": token, "x-qibo-client-version": version}
         self.base_url = url
 
+        # Job management
         self.pid = None
         self.results_folder = None
         self.results_path = None
 
     def check_client_server_qibo_versions(self):
-        """Check that client and server qibo package installed versions match.
+        """Check that client and server qibo package versions match.
 
-        Raise assertion error if the two versions are not the same.
+        Validates that the local Qibo version meets the server's requirements
+        and optionally warns if the local version is older than the server's.
+
+        Raises:
+            RuntimeError: If the local qibo version is below the server's minimum
         """
         url = self.base_url + "/api/qibo_version/"
         response = QiboApiRequest.get(
@@ -47,25 +67,21 @@ class Client:
             headers=self.headers,
             timeout=constants.TIMEOUT,
             keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
-        )
+        ).json()
 
-        qibo_server_version = Version(response.json()["server_qibo_version"])
-        qibo_minimum_client_version = Version(
-            response.json()["minimum_client_qibo_version"]
-        )
-
+        qibo_server_version = Version(response["server_qibo_version"])
+        qibo_min_client_version = Version(response["minimum_client_qibo_version"])
         qibo_client_version = Version(qibo.__version__)
-        msg = (
-            "The qibo-client package requires an installed qibo package version"
-            f">={qibo_minimum_client_version}, the local qibo "
-            f"version is {qibo_client_version}"
-        )
-        assert qibo_client_version >= qibo_minimum_client_version, msg
+
+        if qibo_client_version < qibo_min_client_version:
+            raise RuntimeError(
+                f"The qibo-client requires qibo>={qibo_min_client_version}, "
+                f"but local version is {qibo_client_version}"
+            )
 
         if qibo_client_version < qibo_server_version:
             logger.warning(
-                "Local Qibo package version does not match the server one, please "
-                "upgrade: %s -> %s",
+                "Local Qibo version (%s) is older than server (%s). Please upgrade.",
                 qibo_client_version,
                 qibo_server_version,
             )
@@ -78,33 +94,27 @@ class Client:
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
     ) -> T.Optional[QiboJob]:
-        """Run circuit on the cluster.
+        """Run a quantum circuit on the cluster.
 
-        :param circuit: the QASM representation of the circuit to run
-        :type circuit: Circuit
-        :param device: the device to run the circuit on.
-        :type device: str
-        :type project: the project to run the circuit on.
-        :type project: str
-        :param nshots: number of shots, mandatory for non-simulation devices, defaults to `nshots=100` for simulation partitions
-        :type nshots: int
-        :param verbatim: If True, attempts to run the circuit without any transpilation. Defaults to False.
-        :type verbatim: bool
-        :param wait_for_results: whether to let the client hang until server results are ready or not. Defaults to True.
-        :type wait_for_results: bool
+        This method submits a quantum circuit to the Qibo server for execution
+        and returns a job object that can be used to monitor status and retrieve results.
 
-        :return:
-            the result of the computation. None if the job
-            raised an error.
-        :rtype: Optional[QiboJob]
+        Args:
+            circuit: The Qibo circuit to run
+            device: The device to execute the circuit on
+            project: The project to associate with this job. Defaults to "personal"
+            nshots: Number of measurement shots (quantum executions)
+            verbatim: If True, attempts to run circuit without transpilation
+
+        Returns:
+            QiboJob object for monitoring the job, or None if submission failed
+
+        Raises:
+            JobPostServerError: If the server fails to process the job submission
         """
         self.check_client_server_qibo_versions()
 
-        job = self._post_circuit(circuit, device, project, nshots, verbatim)
-
-        job._preamble = build_event_job_posted_panel(device, job.pid)
-
-        return job
+        return self._post_circuit(circuit, device, project, nshots, verbatim)
 
     def _post_circuit(
         self,
@@ -113,7 +123,22 @@ class Client:
         project: str,
         nshots: T.Optional[int] = None,
         verbatim: bool = False,
-    ) -> QiboJob | None:
+    ) -> QiboJob:
+        """Submit a circuit to the server.
+
+        Args:
+            circuit: The circuit to submit
+            device: Device identifier for execution
+            project: Project name
+            nshots: Number of shots for measurement
+            verbatim: Whether to use verbatim execution mode
+
+        Returns:
+            QiboJob object for monitoring
+
+        Raises:
+            JobPostServerError: If server does not return a valid PID
+        """
         url = self.base_url + "/api/jobs/"
 
         payload = {
@@ -128,14 +153,11 @@ class Client:
             headers=self.headers,
             json=payload,
             timeout=constants.TIMEOUT,
-        )
+        ).json()
 
-        result = response.json()
-
-        self.pid = result.get("pid")
-
+        self.pid = response.get("pid")
         if self.pid is None:
-            raise JobPostServerError(result["detail"])
+            raise JobPostServerError(response["detail"])
 
         return QiboJob(
             base_url=self.base_url,
@@ -144,31 +166,46 @@ class Client:
             circuit=circuit.raw,
             nshots=nshots,
             device=device,
+            project=project,
         )
 
     def print_quota_info(self):
-        """Logs or prints user quota info with Rich or fallback."""
-        url = self.base_url + "/api/disk_quota/"
-        response = QiboApiRequest.get(
-            url, headers=self.headers, timeout=constants.TIMEOUT
-        )
-        disk_quota = response.json()[0]
+        """Print or log user quota information.
 
-        url = self.base_url + "/api/projectquotas/"
-        response = QiboApiRequest.get(
-            url, headers=self.headers, timeout=constants.TIMEOUT
-        )
-        projectquotas = response.json()
+        Retrieves disk usage and project quota information from the server
+        and displays it using the configured UI (Rich or plain logging).
+
+        Returns:
+            None
+        """
+        disk_quota = QiboApiRequest.get(
+            self.base_url + "/api/disk_quota/",
+            headers=self.headers,
+            timeout=constants.TIMEOUT,
+        ).json()[0]
+
+        projectquotas = QiboApiRequest.get(
+            self.base_url + "/api/projectquotas/",
+            headers=self.headers,
+            timeout=constants.TIMEOUT,
+        ).json()
 
         ui.render_quota(disk_quota, projectquotas)
 
     def print_job_info(self):
-        """Logs or prints job info with Rich or fallback."""
-        url = self.base_url + "/api/jobs/"
-        response = QiboApiRequest.get(
-            url, headers=self.headers, timeout=constants.TIMEOUT
-        )
-        jobs = response.json()
+        """Print or log information about completed jobs.
+
+        Retrieves job information from the server and displays it.
+        Expects at most one user account.
+
+        Raises:
+            ValueError: If multiple user accounts are found in job list
+        """
+        jobs = QiboApiRequest.get(
+            self.base_url + "/api/jobs/",
+            headers=self.headers,
+            timeout=constants.TIMEOUT,
+        ).json()
 
         if not jobs:
             logger.info("No jobs found in database for user")
@@ -176,46 +213,45 @@ class Client:
 
         user_set = {job["user"]["email"] for job in jobs}
         if len(user_set) > 1:
-            raise ValueError(
-                "The `/api/jobs/` endpoint returned info about multiple accounts."
-            )
-        user = next(iter(user_set))
+            raise ValueError("Multiple accounts found in /api/jobs/.")
 
-        def _fmt(dt: str) -> str:
-            dt = dateutil.parser.isoparse(dt)
-            return dt.strftime("%Y-%m-%d %H:%M:%S")
+        def fmt_dt(dt: str) -> str:
+            """Format ISO datetime to readable string."""
+            return dateutil.parser.isoparse(dt).strftime("%Y-%m-%d %H:%M:%S")
 
-        ui.render_jobs(user, jobs, _fmt)
+        ui.render_jobs(next(iter(user_set)), jobs, fmt_dt)
 
     def get_job(self, pid: str) -> QiboJob:
-        """Retrieves the job from the unique process id.
+        """Retrieve an existing job by process ID.
 
-        :param pid: the job's process identifier
-        :type pid: str
+        Args:
+            pid: Process ID of the job to retrieve
 
-        :return: the requested QiboJob object
-        :rtype: QiboJob
+        Returns:
+            QiboJob object representing the retrieved job
         """
         job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
         job.refresh()
         return job
 
     def delete_job(self, pid: str):
-        """Removes the given job from the web server.
+        """Remove a job from the server.
 
-        :param pid: the job's process identifier
-        :type pid: str
+        Args:
+            pid: Process ID of the job to delete
         """
-        job = QiboJob(base_url=self.base_url, headers=self.headers, pid=pid)
-        job.delete()
+        QiboJob(base_url=self.base_url, headers=self.headers, pid=pid).delete()
         logger.info("Deleted job %s", pid)
 
     def delete_all_jobs(self) -> list[str]:
-        """Removes all jobs from the web server."""
+        """Remove all jobs from the server.
+
+        Returns:
+            List of PIDs that were deleted
+        """
         url = self.base_url + "/api/jobs/bulk_delete/"
-        response = QiboApiRequest.delete(
+        deleted_jobs = QiboApiRequest.delete(
             url, headers=self.headers, timeout=constants.TIMEOUT
-        )
-        deleted_jobs = response.json()["deleted"]
+        ).json()["deleted"]
         logger.info("Deleted %s jobs", len(deleted_jobs))
         return deleted_jobs

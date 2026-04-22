@@ -21,6 +21,12 @@ The `qibo-client` package can be installed through `pip`:
 pip install qibo-client
 ```
 
+For Jupyter notebook support (including progress bars and rich UI), you can install the optional dependencies:
+
+```bash
+pip install "qibo-client[notebook]"
+```
+
 ## Quick start
 
 Once installed, the provider allows to run quantum circuit computations on remote labs using Qibo.

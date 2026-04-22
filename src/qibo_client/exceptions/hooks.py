@@ -1,3 +1,9 @@
+"""Exception hook management for qibo-client.
+
+This module provides hooks to gracefully handle QiboApiError exceptions across
+different execution environments (CLI, IPython, asyncio, threading).
+"""
+
 import asyncio
 import importlib
 import sys
@@ -15,13 +21,25 @@ _installed = False  # idempotency guard
 
 
 def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
-    """IPython custom exception hook: render API errors cleanly."""
+    """IPython custom exception hook: render API errors cleanly.
+
+    Args:
+        shell: IPython shell instance
+        exc_type: Exception type
+        exc_value: Exception instance
+        tb: Traceback object
+        tb_offset: Offset for traceback
+    """
     _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters
     print_api_error(exc_value)
 
 
 def _get_ipython_shell():
-    """Return the active IPython shell instance, or None if unavailable."""
+    """Return the active IPython shell instance, or None if unavailable.
+
+    Returns:
+        The active IPython shell instance or None
+    """
     if "IPython" not in sys.modules:
         return None
     try:
@@ -38,6 +56,13 @@ def _get_ipython_shell():
 
 
 def _qibo_sys_excepthook(exc_type, exc_value, exc_tb):
+    """System exception hook that prioritizes API errors.
+
+    Args:
+        exc_type: Exception type
+        exc_value: Exception instance
+        exc_tb: Traceback
+    """
     if issubclass(exc_type, QiboApiError):
         print_api_error(exc_value)
         return
@@ -47,6 +72,11 @@ def _qibo_sys_excepthook(exc_type, exc_value, exc_tb):
 
 
 def _qibo_threading_excepthook(args: threading.ExceptHookArgs):
+    """Thread exception hook that prioritizes API errors.
+
+    Args:
+        args: Threading exception hook arguments
+    """
     if isinstance(args.exc_value, QiboApiError):
         print_api_error(args.exc_value)
         return
@@ -56,6 +86,12 @@ def _qibo_threading_excepthook(args: threading.ExceptHookArgs):
 
 
 def _qibo_asyncio_exception_handler(loop, context):
+    """Asyncio exception handler that prioritizes API errors.
+
+    Args:
+        loop: The asyncio event loop
+        context: Exception context dictionary
+    """
     exc = context.get("exception")
     if isinstance(exc, QiboApiError):
         print_api_error(exc)
@@ -64,12 +100,12 @@ def _qibo_asyncio_exception_handler(loop, context):
 
 
 def _install_asyncio_handler_if_running():
-    """Attach our handler to the *running* loop, if any, with no deprecation warnings."""
+    """Attach handler to the *running* loop, if any, with no deprecation warnings."""
     try:
         loop = asyncio.get_running_loop()  # 3.7+: no warning; raises if none
     except RuntimeError:
         return
-    # Save previous only once per loop
+    # Save previous only once per loop to avoid duplicate restoration
     if loop not in _prev_asyncio_handlers:
         _prev_asyncio_handlers[loop] = loop.get_exception_handler()
     loop.set_exception_handler(_qibo_asyncio_exception_handler)
@@ -87,7 +123,15 @@ def _uninstall_asyncio_handler_all_known_loops():
 
 
 def install_qibo_error_hooks() -> bool:
-    """Install hooks once. Returns True if installed this call, False if already installed."""
+    """Install error hooks once.
+
+    This function installs exception hooks for sys.excepthook, threading,
+    asyncio, and IPython. It's idempotent and returns True if installed
+    for this call, False if already installed.
+
+    Returns:
+        True if hooks were installed, False if already installed
+    """
     global _installed, _prev_sys_excepthook, _prev_threading_excepthook
     if _installed:
         return False
@@ -114,7 +158,15 @@ def install_qibo_error_hooks() -> bool:
 
 
 def uninstall_qibo_error_hooks() -> bool:
-    """Restore previous hooks. Returns True if uninstalled, False if not installed."""
+    """Restore previous hooks.
+
+    This function restores the original exception hook functions and removes
+    the qibo-client hooks. It's idempotent and returns True if uninstalled
+    successfully, False if hooks were not installed.
+
+    Returns:
+        True if hooks were uninstalled, False if not installed
+    """
     global _installed
     if not _installed:
         return False
@@ -133,16 +185,19 @@ def uninstall_qibo_error_hooks() -> bool:
 
 @contextmanager
 def qibo_error_hooks():
-    """Context manager that installs hooks for the duration of the block."""
+    """Context manager that installs hooks for the duration of the block.
+
+    This is useful for temporarily enhancing error handling in test environments
+    or interactive debugging sessions.
+
+    Usage:
+        with qibo_error_hooks():
+            # Your code that might raise API errors
+            pass
+    """
     installed_now = install_qibo_error_hooks()
     try:
         yield
     finally:
         if installed_now:
             uninstall_qibo_error_hooks()
-
-
-def _ipython_custom_exc_handler(shell, exc_type, exc_value, tb, tb_offset=None):
-    """IPython custom exception hook: render API errors cleanly."""
-    _ = (shell, exc_type, tb, tb_offset)  # keep signature for IPython; silence linters
-    print_api_error(exc_value)

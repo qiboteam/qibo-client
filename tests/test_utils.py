@@ -266,3 +266,21 @@ def test_error_cleanup_parsed_dict_picks_detail_from_inner_json_string():
 
     assert err.value.status == 400
     assert "Nested detail message" in str(err.value)
+
+
+@responses.activate
+def test_extract_clean_message_errors_key():
+    """Test that _extract_clean_message picks up 'errors' key when other keys are absent."""
+    endpoint = "http://fake.endpoint.com/api"
+    responses.add(
+        responses.GET,
+        endpoint,
+        json={"errors": [{"field": "name", "msg": "required"}]},
+        status=400,
+    )
+
+    with pytest.raises(exceptions.QiboApiError) as err:
+        utils.QiboApiRequest.get(endpoint)
+
+    assert err.value.status == 400
+    assert "required" in str(err.value)

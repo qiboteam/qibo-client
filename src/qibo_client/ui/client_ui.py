@@ -1,18 +1,26 @@
+"""UI rendering functions for quota and job information.
+
+This module provides functions for rendering quota information and job lists
+using tabulate and Rich UI components.
+"""
+
 import tabulate
 from rich import box
 from rich.panel import Panel
 from rich.table import Table
-from rich.text import Text
 
-from ..config_logging import logger
 from .settings import USE_RICH_UI, console
 
-# =====================================================================
-# RENDER HELPERS (module-level, not class methods)
-# =====================================================================
 
+def _quota_rows(projectquotas: list[dict]) -> list[tuple]:
+    """Extract quota details into a flat tuple format for table rendering.
 
-def _quota_rows_from_payload(projectquotas: list[dict]) -> list[tuple]:
+    Args:
+        projectquotas: List of project quota dictionaries
+
+    Returns:
+        List of tuples containing quota details
+    """
     return [
         (
             t["project"],
@@ -29,7 +37,16 @@ def _quota_rows_from_payload(projectquotas: list[dict]) -> list[tuple]:
     ]
 
 
-def _jobs_rows_from_payload(jobs: list[dict], fmt) -> list[tuple]:
+def _jobs_rows(jobs: list[dict], fmt) -> list[tuple]:
+    """Extract job details into a flat tuple format for table rendering.
+
+    Args:
+        jobs: List of job dictionaries
+        fmt: Function to format datetime strings
+
+    Returns:
+        List of tuples containing job details
+    """
     return [
         (
             job["pid"],
@@ -42,44 +59,37 @@ def _jobs_rows_from_payload(jobs: list[dict], fmt) -> list[tuple]:
     ]
 
 
-# ---------------- Fallback (tabulate) renderers ----------------
+def render_quota(disk_quota: dict, projectquotas: list[dict]) -> None:
+    """Render quota information using Rich UI or fallback logging.
 
+    Args:
+        disk_quota: Disk quota information dictionary
+        projectquotas: List of project quota dictionaries
+    """
+    if not USE_RICH_UI:
+        from ..config_logging import logger
 
-def render_quota_fallback(disk_quota: dict, projectquotas: list[dict]) -> None:
-    message = (
-        f"User: {disk_quota['user']['email']}\n"
-        f"Disk quota left [KBs]: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
-    )
-    rows = _quota_rows_from_payload(projectquotas)
-    message += tabulate.tabulate(
-        rows,
-        headers=[
-            "Project Name",
-            "Device Name",
-            "Qubits",
-            "Type",
-            "Description",
-            "Status",
-            "Time Left [s]",
-            "Shots Left",
-            "Jobs Left",
-        ],
-    )
-    logger.info(message)
+        msg = (
+            f"User: {disk_quota['user']['email']}\n"
+            f"Disk quota left [KBs]: {disk_quota['kbs_left']:.2f} / {disk_quota['kbs_max']:.2f}\n"
+        )
+        msg += tabulate.tabulate(
+            _quota_rows(projectquotas),
+            headers=[
+                "Project Name",
+                "Device Name",
+                "Qubits",
+                "Type",
+                "Description",
+                "Status",
+                "Time Left [s]",
+                "Shots Left",
+                "Jobs Left",
+            ],
+        )
+        logger.info(msg)
+        return
 
-
-def render_jobs_fallback(user: str, jobs: list[dict], fmt) -> None:
-    rows = _jobs_rows_from_payload(jobs, fmt)
-    message = f"User: {user}\n" + tabulate.tabulate(
-        rows, headers=["Pid", "Created At", "Updated At", "Status", "Results"]
-    )
-    logger.info(message)
-
-
-# ---------------- Rich renderers ----------------
-
-
-def render_quota_rich(disk_quota: dict, projectquotas: list[dict]) -> None:
     used = disk_quota["kbs_max"] - disk_quota["kbs_left"]
     quota_text = (
         f"[bold cyan]User:[/bold cyan] {disk_quota['user']['email']}\n"
@@ -93,36 +103,57 @@ def render_quota_rich(disk_quota: dict, projectquotas: list[dict]) -> None:
         box=box.SIMPLE_HEAVY,
         title_style="bold green",
     )
-    table.add_column("Project", style="cyan")
-    table.add_column("Device", style="yellow")
-    table.add_column("Qubits", justify="right")
-    table.add_column("Type", style="bold")
-    table.add_column("Description", overflow="fold")
-    table.add_column("Status", style="bold")
-    table.add_column(Text("Time Left [s]"), justify="right")
-    table.add_column("Shots Left", justify="right")
-    table.add_column("Jobs Left", justify="right")
+    for col in [
+        "Project",
+        "Device",
+        "Qubits",
+        "Type",
+        "Description",
+        "Status",
+        "Time Left [s]",
+        "Shots Left",
+        "Jobs Left",
+    ]:
+        table.add_column(col)
 
     for t in projectquotas:
-        status = t["partition"]["status"]
-        status_color = "green" if status == "available" else "red"
+        p = t["partition"]
+        status_color = "green" if p["status"] == "available" else "red"
         table.add_row(
             t["project"],
-            t["partition"]["name"],
-            str(t["partition"]["max_num_qubits"]),
-            t["partition"]["hardware_type"],
-            t["partition"]["description"],
-            f"[{status_color}]{status}[/{status_color}]",
+            p["name"],
+            str(p["max_num_qubits"]),
+            p["hardware_type"],
+            p["description"] or "-",
+            f"[{status_color}]{p['status']}[/{status_color}]",
             f"{t['seconds_left']:.0f}",
             str(t["shots_left"]),
             str(t["jobs_left"]),
         )
 
-    panel = Panel(table, title="Quota Information", subtitle=quota_text, expand=False)
-    console.print(panel)
+    console.print(
+        Panel(table, title="Quota Information", subtitle=quota_text, expand=False)
+    )
 
 
-def render_jobs_rich(user: str, jobs: list[dict], fmt) -> None:
+def render_jobs(user: str, jobs: list[dict], fmt) -> None:
+    """Render job information using Rich UI or fallback logging.
+
+    Args:
+        user: Email address of the user
+        jobs: List of job dictionaries
+        fmt: Function to format datetime strings
+    """
+    if not USE_RICH_UI:
+        from ..config_logging import logger
+
+        msg = f"User: {user}\n" + tabulate.tabulate(
+            _jobs_rows(jobs, fmt),
+            headers=["Pid", "Created At", "Updated At", "Status", "Results"],
+        )
+        logger.info(msg)
+        return
+
     table = Table(
         title=f"Jobs for {user}",
         show_header=True,
@@ -130,38 +161,17 @@ def render_jobs_rich(user: str, jobs: list[dict], fmt) -> None:
         box=box.SIMPLE_HEAVY,
         title_style="bold green",
     )
-    table.add_column("PID", style="cyan", overflow="fold")
-    table.add_column("Created At", style="yellow")
-    table.add_column("Updated At", style="yellow")
-    table.add_column("Status", style="bold")
-    table.add_column("Results", overflow="fold")
+    for col in ["PID", "Created At", "Updated At", "Status", "Results"]:
+        table.add_column(col)
 
     for job in jobs:
-        status_color = "green" if job["status"] == "success" else "red"
+        color = "green" if job["status"] == "success" else "red"
         table.add_row(
             job["pid"],
             fmt(job["created_at"]),
             fmt(job["updated_at"]),
-            f"[{status_color}]{job['status']}[/{status_color}]",
-            job["result_path"],
+            f"[{color}]{job['status']}[/{color}]",
+            job["result_path"] or "-",
         )
 
-    panel = Panel(table, title="Job Information", expand=False)
-    console.print(panel)
-
-
-# ---------------- Renderers ----------------
-
-
-def render_quota(disk_quota: dict, projectquotas: list[dict]) -> None:
-    if USE_RICH_UI:
-        render_quota_rich(disk_quota, projectquotas)
-    else:
-        render_quota_fallback(disk_quota, projectquotas)
-
-
-def render_jobs(user: str, jobs: list[dict], fmt) -> None:
-    if USE_RICH_UI:
-        render_jobs_rich(user, jobs, fmt)
-    else:
-        render_jobs_fallback(user, jobs, fmt)
+    console.print(Panel(table, title="Job Information", expand=False))
