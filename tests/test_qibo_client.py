@@ -54,7 +54,7 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": FAKE_QIBO_VERSION,
-            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
             "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         with responses.RequestsMock() as rsps:
@@ -76,7 +76,7 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
-            "minimum_client_qibo_version": "0.2.8",
+            "minimum_qibo_version": "0.2.8",
             "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
@@ -110,7 +110,7 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
-            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
             "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
@@ -337,7 +337,7 @@ def test_rejects_old_sdk_version(monkeypatch):
         def json(self):
             return {
                 "server_qibo_version": "0.3.2",
-                "minimum_client_qibo_version": "0.0.1",
+                "minimum_qibo_version": "0.0.1",
                 "minimum_client_version": "0.3.0",
             }
 

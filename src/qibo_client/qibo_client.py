@@ -64,13 +64,13 @@ class Client:
             timeout=constants.TIMEOUT,
             keys_to_check=[
                 "server_qibo_version",
-                "minimum_client_qibo_version",
+                "minimum_qibo_version",
                 "minimum_client_version",
             ],
         ).json()
 
         qibo_server_version = Version(response["server_qibo_version"])
-        qibo_min_client_version = Version(response["minimum_client_qibo_version"])
+        qibo_min_client_version = Version(response["minimum_qibo_version"])
         qibo_client_version = Version(qibo.__version__)
 
         if qibo_client_version < qibo_min_client_version:
