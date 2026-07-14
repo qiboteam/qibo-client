@@ -32,8 +32,6 @@ class Client:
         headers: HTTP headers including authentication
         base_url: Base URL for the Qibo server API
         pid: Process ID of the most recent job
-        results_folder: Folder where job results are stored
-        results_path: Path to the most recent results file
     """
 
     def __init__(self, token: str, url: str):
@@ -49,8 +47,6 @@ class Client:
 
         # Job management
         self.pid = None
-        self.results_folder = None
-        self.results_path = None
 
     def check_client_server_qibo_versions(self):
         """Check that client and server qibo package versions match.
@@ -66,7 +62,11 @@ class Client:
             url,
             headers=self.headers,
             timeout=constants.TIMEOUT,
-            keys_to_check=["server_qibo_version", "minimum_client_qibo_version"],
+            keys_to_check=[
+                "server_qibo_version",
+                "minimum_client_qibo_version",
+                "minimum_client_version",
+            ],
         ).json()
 
         qibo_server_version = Version(response["server_qibo_version"])
@@ -84,6 +84,15 @@ class Client:
                 "Local Qibo version (%s) is older than server (%s). Please upgrade.",
                 qibo_client_version,
                 qibo_server_version,
+            )
+
+        min_client_version = Version(response["minimum_client_version"])
+        this_client_version = Version(version)
+        if this_client_version < min_client_version:
+            raise RuntimeError(
+                f"This qibo-client version ({this_client_version}) is no longer "
+                f"supported by the server. Please upgrade to "
+                f"qibo-client>={min_client_version}."
             )
 
     def run_circuit(
