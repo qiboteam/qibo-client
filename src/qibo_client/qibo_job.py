@@ -5,12 +5,9 @@ framework services, including job submission, monitoring, and result retrieval.
 """
 
 import importlib.metadata as im
-import tarfile
-import tempfile
 import time
 import typing as T
 from enum import Enum, auto
-from pathlib import Path
 
 import qibo
 import requests
@@ -68,58 +65,6 @@ def convert_str_to_job_status(status: str) -> T.Optional[QiboJobStatus]:
         return None
 
 
-def _write_stream_to_tmp_file(stream: T.Iterable) -> Path:
-    """Write chunk of bytes to a temporary file.
-
-    This function streams data to a temporary file for safe handling
-    and subsequent archive processing.
-
-    Args:
-        stream: Iterator yielding byte chunks
-
-    Returns:
-        Path to the created temporary file
-    """
-    with tempfile.NamedTemporaryFile(delete=False) as tmp_file:
-        for chunk in stream:
-            if chunk:
-                tmp_file.write(chunk)
-        archive_path = tmp_file.name
-    return Path(archive_path)
-
-
-def _extract_archive_to_folder(source_archive: Path, destination_folder: Path):
-    """Extract a tar.gz archive to a destination folder.
-
-    Handles both modern and legacy tarfile.extractall API versions.
-
-    Args:
-        source_archive: Path to the archive file to extract
-        destination_folder: Path to destination directory
-    """
-    with tarfile.open(source_archive, "r:gz") as archive:
-        try:
-            archive.extractall(destination_folder, filter="data")
-        except TypeError:
-            # Fall back to extractall without filter parameter for older Python versions
-            archive.extractall(destination_folder)
-
-
-def _save_and_unpack_stream_response_to_folder(
-    stream: T.Iterable,
-    results_folder: Path,
-):
-    """Save a stream response to a folder and extract its contents.
-
-    Args:
-        stream: The stream response containing archive data
-        results_folder: The folder to save and extract results into
-    """
-    archive_path = _write_stream_to_tmp_file(stream)
-    _extract_archive_to_folder(archive_path, results_folder)
-    archive_path.unlink()
-
-
 class QiboJob:
     """Job object representing a Qibo quantum computing job.
 
@@ -138,8 +83,7 @@ class QiboJob:
         queue_position: Current position in execution queue
         seconds_to_job_start: Estimated seconds until job starts
         queue_last_update: Last time queue status was updated
-        results_folder: Folder where results are stored
-        results_path: Path to the results file
+        frequencies: Measurement frequencies histogram returned by the server
     """
 
     def __init__(
@@ -176,9 +120,8 @@ class QiboJob:
         self.seconds_to_job_start: T.Optional[int | float] = None
         self.queue_last_update: T.Optional[str] = None
 
-        # Results storage
-        self.results_folder: T.Optional[Path] = None
-        self.results_path: T.Optional[Path] = None
+        # Frequencies dict returned by the server (populated on refresh()).
+        self.frequencies: T.Optional[dict] = None
 
     def refresh(self) -> QiboJobStatus:
         """Refresh job information from the server.
@@ -196,6 +139,7 @@ class QiboJob:
 
         self.circuit = info.get("circuit", self.circuit)
         self.nshots = info.get("nshots", self.nshots)
+        self.frequencies = info.get("frequencies", self.frequencies)
 
         pq = info.get("projectquota") or {}
         part = pq.get("partition") or {}
@@ -239,46 +183,43 @@ class QiboJob:
 
     def result(
         self, wait: float = 0.5, verbose: bool = True
-    ) -> T.Optional[qibo.result.QuantumState]:
-        """Poll server until completion, then download and return result.
+    ) -> T.Optional[qibo.result.MeasurementOutcomes]:
+        """Poll until completion, then rebuild the result from frequencies.
 
-        This method continuously polls the job status until completion
-        and then downloads and extracts the results archive.
+        As of v0.3.0 the server transfers only the measurement frequencies
+        (a JSON histogram), not the full numpy array. The result object is
+        reconstructed locally via ``MeasurementOutcomes.from_frequencies``.
 
         Args:
             wait: Seconds between status checks
             verbose: Whether to display status updates
 
         Returns:
-            qibo.result.QuantumState if successful, None if job failed or download failed
+            qibo.result.MeasurementOutcomes if successful, else None
         """
-        response, job_status = self._wait_for_response_to_get_request(wait, verbose)
-
-        self.results_folder = constants.RESULTS_BASE_FOLDER / self.pid
-        self.results_folder.mkdir(parents=True, exist_ok=True)
-
-        try:
-            _save_and_unpack_stream_response_to_folder(
-                response.iter_content(), self.results_folder
-            )
-        except tarfile.ReadError as err:
-            logger.error("Tarfile ReadError: %s", err)
-            return None
+        job_status = self._wait_for_completion(wait, verbose)
 
         if job_status == QiboJobStatus.ERROR:
+            logger.error("Job %s exited with error.", self.pid)
+            return None
+
+        if not self.frequencies:
             logger.error(
-                "Job exited with error. Results folder: %s", self.results_folder
+                "Job %s returned no frequencies; nothing to reconstruct.", self.pid
             )
             return None
 
-        self.results_path = self.results_folder / "results.npy"
-        return qibo.result.load_result(self.results_path)
+        circuit = qibo.Circuit.from_dict(self.circuit)
+        measured_qubits = circuit.measurements[0].qubits
+        return qibo.result.MeasurementOutcomes.from_frequencies(
+            self.frequencies, nqubits=len(measured_qubits)
+        )
 
-    def _wait_for_response_to_get_request(
+    def _wait_for_completion(
         self,
         seconds_between_checks: T.Optional[float] = None,
         verbose: bool = True,
-    ) -> T.Tuple[requests.Response, QiboJobStatus]:
+    ) -> QiboJobStatus:
         """Wait for job to complete by polling status.
 
         This method chooses the appropriate waiting strategy based on
@@ -289,7 +230,7 @@ class QiboJob:
             verbose: Whether to show status updates
 
         Returns:
-            Tuple of (download_response, final_status)
+            The final QiboJobStatus enum value
         """
         if seconds_between_checks is None:
             seconds_between_checks = constants.SECONDS_BETWEEN_CHECKS
@@ -302,11 +243,14 @@ class QiboJob:
 
         return self._wait_non_live(seconds_between_checks, verbose)
 
-    def _wait_live(self, interval: float):
+    def _wait_live(self, interval: float) -> QiboJobStatus:
         """Wait for job completion with live Rich UI updates.
 
         Args:
             interval: Seconds between status checks
+
+        Returns:
+            The final QiboJobStatus enum value
         """
         elapsed_timer = ElapsedTimer()
         ui = UISlots(order=("header", "status", "footer"))
@@ -345,11 +289,6 @@ class QiboJob:
                     )
 
                 if status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
-                    resp = QiboApiRequest.get(
-                        self.base_url + f"/api/jobs/{self.pid}/download/",
-                        headers=self.headers,
-                        timeout=constants.TIMEOUT,
-                    )
                     ui.set(
                         "status",
                         build_final_banner(
@@ -362,17 +301,20 @@ class QiboJob:
                         ),
                     )
                     live.refresh()
-                    return resp, status
+                    return status
 
                 live.refresh()
                 time.sleep(interval)
 
-    def _wait_non_live(self, interval: float, verbose: bool):
+    def _wait_non_live(self, interval: float, verbose: bool) -> QiboJobStatus:
         """Wait for job completion with non-live, non-verbose output.
 
         Args:
             interval: Seconds between status checks
             verbose: Whether to show status updates
+
+        Returns:
+            The final QiboJobStatus enum value
         """
         last_status, printed_pending = None, False
         if verbose:
@@ -391,12 +333,7 @@ class QiboJob:
             if self._status in (QiboJobStatus.SUCCESS, QiboJobStatus.ERROR):
                 if verbose:
                     logger.info("Job COMPLETED")
-                resp = QiboApiRequest.get(
-                    self.base_url + f"/api/jobs/{self.pid}/download/",
-                    headers=self.headers,
-                    timeout=constants.TIMEOUT,
-                )
-                return resp, self._status
+                return self._status
 
             time.sleep(interval)
             self.refresh()
