@@ -6,16 +6,19 @@ import pytest
 import responses
 import tabulate
 
+import qibo_client.qibo_client as qc
 from qibo_client import QiboJob, QiboJobStatus, exceptions, qibo_client
+from qibo_client.qibo_client import Client
 
 MOD = "qibo_client.qibo_client"
 FAKE_URL = "http://fake.endpoint.com"
 FAKE_PROJECT = "fakeProject"
 FAKE_TOKEN = "fakeToken"
-FAKE_QIBO_CLIENT_VERSION = "0.2.x"
+FAKE_QIBO_CLIENT_VERSION = "0.2.9"
 FAKE_USER_EMAIL = "fake@user.com"
 FAKE_QIBO_VERSION = "0.2.6"
 FAKE_MINIMUM_QIBO_VERSION_ALLOWED = "0.1.2a"
+FAKE_MINIMUM_CLIENT_VERSION_ALLOWED = "0.0.1"
 FAKE_PID = "123"
 TIMEOUT = 1
 
@@ -51,7 +54,8 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": FAKE_QIBO_VERSION,
-            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         with responses.RequestsMock() as rsps:
             rsps.get(endpoint, status=200, json=response_json)
@@ -62,8 +66,6 @@ class TestQiboClient:
         assert self.client.base_url == FAKE_URL
 
         assert self.client.pid is None
-        assert self.client.results_folder is None
-        assert self.client.results_path is None
 
     @responses.activate
     def test_check_client_server_qibo_versions_raises_assertion_error(
@@ -74,7 +76,8 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
-            "minimum_client_qibo_version": "0.2.8",
+            "minimum_qibo_version": "0.2.8",
+            "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
 
@@ -107,7 +110,8 @@ class TestQiboClient:
         endpoint = FAKE_URL + "/api/qibo_version/"
         response_json = {
             "server_qibo_version": "0.2.9",
-            "minimum_client_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_qibo_version": FAKE_MINIMUM_QIBO_VERSION_ALLOWED,
+            "minimum_client_version": FAKE_MINIMUM_CLIENT_VERSION_ALLOWED,
         }
         responses.add(responses.GET, endpoint, status=200, json=response_json)
         self.client.check_client_server_qibo_versions()
@@ -324,3 +328,21 @@ class TestQiboClient:
 
         response = self.client.delete_all_jobs()
         assert response == response_json["deleted"]
+
+
+def test_rejects_old_sdk_version(monkeypatch):
+    monkeypatch.setattr(qc, "version", "0.2.4")
+
+    class _Resp:
+        def json(self):
+            return {
+                "server_qibo_version": "0.3.2",
+                "minimum_qibo_version": "0.0.1",
+                "minimum_client_version": "0.3.0",
+            }
+
+    monkeypatch.setattr(qc.QiboApiRequest, "get", staticmethod(lambda *a, **k: _Resp()))
+
+    client = Client(token="t", url="http://x")
+    with pytest.raises(RuntimeError, match="qibo-client"):
+        client.check_client_server_qibo_versions()
