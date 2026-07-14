@@ -279,7 +279,7 @@ class TestLiveTTYBranch:
         assert job_status == qibo_job.QiboJobStatus.SUCCESS
 
     @responses.activate
-    def test_wait_non_live_non_verbose(self, monkeypatch):
+    def test_wait_non_live_non_verbose(self):
         info_endpoint = FAKE_URL + f"/api/jobs/{FAKE_PID}/"
         # initial refresh
         responses.add(
@@ -360,3 +360,30 @@ def test_result_returns_none_on_empty_frequencies(monkeypatch):
 
     monkeypatch.setattr(job, "_wait_for_completion", fake_wait)
     assert job.result(verbose=False) is None
+
+
+def _make_multi_register_job():
+    qibo.set_backend("numpy")
+    c = qibo.Circuit(2)
+    c.add(qibo.gates.H(0))
+    c.add(qibo.gates.M(0))
+    c.add(qibo.gates.M(1))
+    job = QiboJob(pid="PID2", base_url="http://x", circuit=c.raw, nshots=100)
+    return job
+
+
+def test_result_rebuilds_measurement_outcomes_with_multiple_registers(monkeypatch):
+    # Regression test: nqubits must be computed across ALL measurement
+    # gates/registers, not just the first one. A circuit with two separate
+    # M() calls (two registers) must still reconstruct the full 2-qubit
+    # frequency histogram.
+    job = _make_multi_register_job()
+
+    def fake_wait(wait, verbose):
+        job._status = QiboJobStatus.SUCCESS
+        job.frequencies = {"00": 30, "11": 20}
+        return QiboJobStatus.SUCCESS
+
+    monkeypatch.setattr(job, "_wait_for_completion", fake_wait)
+    out = job.result(verbose=False)
+    assert dict(out.frequencies()) == {"00": 30, "11": 20}

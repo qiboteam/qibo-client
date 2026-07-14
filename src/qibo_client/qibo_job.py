@@ -210,9 +210,9 @@ class QiboJob:
             return None
 
         circuit = qibo.Circuit.from_dict(self.circuit)
-        measured_qubits = circuit.measurements[0].qubits
+        nqubits = sum(len(m.qubits) for m in circuit.measurements)
         return qibo.result.MeasurementOutcomes.from_frequencies(
-            self.frequencies, nqubits=len(measured_qubits)
+            self.frequencies, nqubits=nqubits
         )
 
     def _wait_for_completion(
